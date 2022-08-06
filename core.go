@@ -27,21 +27,10 @@ func Parse(name string) (*File, error) {
 
 	defer input.Close()
 
-	header, err := parseHeader(input)
+	file, err := parseFile(input)
 
 	if err != nil {
-		return nil, fmt.Errorf("swf: failed to parse header: %w", err)
-	}
-
-	contents, err := parseContents(input)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse contents: %w")
-	}
-
-	file := &File{
-		Header:   header,
-		Contents: contents,
+		return nil, fmt.Errorf("swf: failed to parse file: %w", err)
 	}
 
 	return file, nil
@@ -70,7 +59,7 @@ func (h *Header) String() string {
 	)
 }
 
-func parseHeader(input io.Reader) (*Header, error) {
+func parseFile(input io.Reader) (*File, error) {
 	// Read the signature block. (Fixed length, 3 byte, little endian)
 	signature := &bytes.Buffer{}
 
@@ -236,6 +225,12 @@ func parseHeader(input io.Reader) (*Header, error) {
 		frameCount = w
 	}
 
+	contents, err := parseContents(input)
+
+	if err != nil {
+		return nil, err
+	}
+
 	header := &Header{
 		Signature:     signature.String(),
 		Version:       uint8(version.Bytes()[0]),
@@ -251,7 +246,12 @@ func parseHeader(input io.Reader) (*Header, error) {
 		rawFrameCount: frameCount,
 	}
 
-	return header, nil
+	file := &File{
+		Header: header,
+		Contents: contents,
+	}
+
+	return file, nil
 }
 
 func parseHeaderRect(input []byte, bitsPerField int) ([]uint32, error) {
