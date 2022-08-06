@@ -2,6 +2,7 @@ package swf
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -62,6 +63,13 @@ type Header struct {
 	rawFrameCount *bytes.Buffer
 }
 
+func (h *Header) String() string {
+	return fmt.Sprintf(
+		"Header{Signature: %q, Version: %d, FileSize: %d, Rect: %+v, FrameRate: %.2f, FrameCount: %d}",
+		h.Signature, h.Version, h.FileSize, h.Rect, h.FrameRate, h.FrameCount,
+	)
+}
+
 func parseHeader(input io.Reader) (*Header, error) {
 	// Read the signature block. (Fixed length, 3 byte, little endian)
 	signature := &bytes.Buffer{}
@@ -113,6 +121,29 @@ func parseHeader(input io.Reader) (*Header, error) {
 		}
 
 		fileSize = w
+	}
+
+	if signature.String() == `CWS` {
+		reader, err := zlib.NewReader(input)
+
+		if err != nil {
+			return nil, err
+		}
+
+		defer reader.Close()
+
+		content := &bytes.Buffer{}
+
+		contentLength, err := io.Copy(content, reader)
+
+		if err != nil {
+			return nil, err
+		}
+		if contentLength != int64(fileSizeUint32-8) {
+			return nil, fmt.Errorf("broken content length")
+		}
+
+		input = content
 	}
 
 	// Read the RECT block. (Variable length, big endian)
