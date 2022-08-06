@@ -16,7 +16,7 @@ type File struct {
 }
 
 type Content struct {
-	TagCode uint16
+	TagCode TagCode
 	Data    *bytes.Buffer
 }
 
@@ -285,7 +285,22 @@ func parseHeaderRect(input []byte, bitsPerField int) ([]uint32, error) {
 }
 
 func parseContents(input io.Reader) ([]*Content, error) {
-	return nil, nil
+	contents := []*Content{}
+
+	for {
+		content, err := parseContent(input)
+
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		contents = append(contents, content)
+	}
+
+	return contents, nil
 }
 
 func parseContent(input io.Reader) (*Content, error) {
@@ -294,6 +309,9 @@ func parseContent(input io.Reader) (*Content, error) {
 
 	tagCodeLength, err := io.CopyN(tagCode, input, 2)
 
+	if err == io.EOF {
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +361,7 @@ func parseContent(input io.Reader) (*Content, error) {
 	}
 
 	content := &Content{
-		TagCode: tagCodeUint16 >> 6,
+		TagCode: TagCode(tagCodeUint16 >> 6),
 		Data:    data,
 	}
 

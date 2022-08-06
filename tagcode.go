@@ -1,3 +1,4 @@
+//go:generate stringer -type=TagCode
 package swf
 
 type TagCode uint16
