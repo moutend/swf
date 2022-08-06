@@ -2,6 +2,7 @@ package swf
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -11,15 +12,6 @@ import (
 type File struct {
 	Header   *Header
 	Contents []*Content
-}
-
-type Header struct {
-	Signature  *bytes.Buffer
-	Version    *bytes.Buffer
-	FileSize   *bytes.Buffer
-	Rect       *bytes.Buffer
-	FrameRate  *bytes.Buffer
-	FrameCount *bytes.Buffer
 }
 
 type Content struct {
@@ -54,6 +46,22 @@ func Parse(name string) (*File, error) {
 	return file, nil
 }
 
+type Header struct {
+	Signature  string
+	Version    uint8
+	FileSize   uint32
+	Rect       []uint32
+	FrameRate  float32
+	FrameCount uint16
+
+	rawSignature  *bytes.Buffer
+	rawVersion    *bytes.Buffer
+	rawFileSize   *bytes.Buffer
+	rawRect       *bytes.Buffer
+	rawFrameRate  *bytes.Buffer
+	rawFrameCount *bytes.Buffer
+}
+
 func parseHeader(input io.Reader) (*Header, error) {
 	// Read the signature block. (Fixed length, 3 byte, little endian)
 	signature := &bytes.Buffer{}
@@ -66,7 +74,7 @@ func parseHeader(input io.Reader) (*Header, error) {
 	if signatureLength != 3 {
 		return nil, fmt.Errorf("broken signature")
 	}
-	if signature.String() != `FWS` || signature.String() != `CWS` {
+	if signature.String() != `FWS` && signature.String() != `CWS` {
 		return nil, fmt.Errorf("unexpected signature found: %s", signature.String())
 	}
 
@@ -94,6 +102,19 @@ func parseHeader(input io.Reader) (*Header, error) {
 		return nil, fmt.Errorf("broken file size")
 	}
 
+	var fileSizeUint32 uint32
+
+	{
+		w := &bytes.Buffer{}
+		r := io.TeeReader(fileSize, w)
+
+		if err := binary.Read(r, binary.LittleEndian, &fileSizeUint32); err != nil {
+			return nil, fmt.Errorf("failed to read file size as uint32: %w", err)
+		}
+
+		fileSize = w
+	}
+
 	// Read the RECT block. (Variable length, big endian)
 	rect := &bytes.Buffer{}
 
@@ -114,6 +135,9 @@ func parseHeader(input io.Reader) (*Header, error) {
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read first 5 bits from RECT: %w", err)
+	}
+	if bitsPerField <= 0 {
+		return nil, fmt.Errorf("unexpected RECT bits per field: %w", bitsPerField)
 	}
 
 	var rectBits int64 = bitsPerField*4 - 3
@@ -136,6 +160,12 @@ func parseHeader(input io.Reader) (*Header, error) {
 		return nil, fmt.Errorf("broken RECT")
 	}
 
+	rectUint32Slice, err := parseHeaderRect(rect.Bytes(), int(bitsPerField))
+
+	if err != nil {
+		return nil, err
+	}
+
 	// Read the frame rate. (Fixed length, 2 byte)
 	frameRate := &bytes.Buffer{}
 
@@ -147,6 +177,8 @@ func parseHeader(input io.Reader) (*Header, error) {
 	if frameRateLength != 2 {
 		return nil, fmt.Errorf("broken frame rate")
 	}
+
+	frameRateFloat32 := float32(uint8(frameRate.Bytes()[1])) + float32(uint8(frameRate.Bytes()[0]))/100.0
 
 	// Read the frame count. (Fixed length, 2 byte, little endian)
 	frameCount := &bytes.Buffer{}
@@ -160,16 +192,63 @@ func parseHeader(input io.Reader) (*Header, error) {
 		return nil, fmt.Errorf("broken frame count")
 	}
 
+	var frameCountUint16 uint16
+
+	{
+		w := &bytes.Buffer{}
+		r := io.TeeReader(frameCount, w)
+
+		if err := binary.Read(r, binary.LittleEndian, &frameCountUint16); err != nil {
+			return nil, fmt.Errorf("failed to read frame count as uint16: %w", err)
+		}
+
+		frameCount = w
+	}
+
 	header := &Header{
-		Signature:  signature,
-		Version:    version,
-		FileSize:   fileSize,
-		Rect:       rect,
-		FrameRate:  frameRate,
-		FrameCount: frameCount,
+		Signature:     signature.String(),
+		Version:       uint8(version.Bytes()[0]),
+		FileSize:      fileSizeUint32,
+		Rect:          rectUint32Slice,
+		FrameRate:     frameRateFloat32,
+		FrameCount:    frameCountUint16,
+		rawSignature:  signature,
+		rawVersion:    version,
+		rawFileSize:   fileSize,
+		rawRect:       rect,
+		rawFrameRate:  frameRate,
+		rawFrameCount: frameCount,
 	}
 
 	return header, nil
+}
+
+func parseHeaderRect(input []byte, bitsPerField int) ([]uint32, error) {
+	var s string
+
+	for i := range input {
+		s += fmt.Sprintf("%08b", input[i])
+	}
+
+	result := make([]uint32, 4)
+
+	// Ignore first 5 bits.
+	start := 5
+
+	for i := 0; i < 4; i++ {
+		n, err := strconv.ParseInt(s[start:start+bitsPerField], 2, 64)
+
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert twip to px. // (20 twip = 1 px)
+		result[i] = uint32(n) / 20
+
+		start += bitsPerField
+	}
+
+	return result, nil
 }
 
 func parseContents(input io.Reader) ([]*Content, error) {
