@@ -16,6 +16,8 @@ type File struct {
 }
 
 type Content struct {
+	TagCode uint16
+	Data    *bytes.Buffer
 }
 
 func Parse(name string) (*File, error) {
@@ -247,7 +249,7 @@ func parseFile(input io.Reader) (*File, error) {
 	}
 
 	file := &File{
-		Header: header,
+		Header:   header,
 		Contents: contents,
 	}
 
@@ -284,4 +286,66 @@ func parseHeaderRect(input []byte, bitsPerField int) ([]uint32, error) {
 
 func parseContents(input io.Reader) ([]*Content, error) {
 	return nil, nil
+}
+
+func parseContent(input io.Reader) (*Content, error) {
+	// Read the tag and its content length. (Fixed length, 2 byte, little endian)
+	tagCode := &bytes.Buffer{}
+
+	tagCodeLength, err := io.CopyN(tagCode, input, 2)
+
+	if err != nil {
+		return nil, err
+	}
+	if tagCodeLength != 2 {
+		return nil, fmt.Errorf("broken tag code")
+	}
+
+	var tagCodeUint16 uint16
+
+	if err := binary.Read(tagCode, binary.LittleEndian, &tagCodeUint16); err != nil {
+		return nil, fmt.Errorf("failed to read tag code as uint16: %w", err)
+	}
+
+	length := int64(0b111111 & tagCodeUint16)
+
+	if length == 0b111111 {
+		// Read the extended length. (Fixed size, 4 byte, little endian)
+		extended := &bytes.Buffer{}
+
+		extendedLength, err := io.CopyN(extended, input, 4)
+
+		if err != nil {
+			return nil, err
+		}
+		if extendedLength != 4 {
+			return nil, fmt.Errorf("broken extended tag code length")
+		}
+
+		var u32 uint32
+
+		if err := binary.Read(extended, binary.LittleEndian, &u32); err != nil {
+			return nil, fmt.Errorf("failed to read extended tag code length as uint32: %w", err)
+		}
+
+		length = int64(u32)
+	}
+
+	data := &bytes.Buffer{}
+
+	dataLength, err := io.CopyN(data, input, length)
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != length {
+		return nil, fmt.Errorf("broken data")
+	}
+
+	content := &Content{
+		TagCode: tagCodeUint16 >> 6,
+		Data:    data,
+	}
+
+	return content, nil
 }
