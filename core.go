@@ -362,6 +362,12 @@ func parseContent(input io.Reader) (*Content, error) {
 
 		length = int64(u32)
 	}
+	switch tagCodeValue {
+	case DefineSprite:
+		length = 4
+	default:
+		// do nothing
+	}
 
 	data := &bytes.Buffer{}
 
