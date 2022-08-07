@@ -15,19 +15,28 @@ type File struct {
 	Contents []*Content
 }
 
-func (f *File) Read(p []byte) (n int, err error) {
-	buffer := &bytes.Buffer{}
+func (f *File) Serialize() ([]byte, error) {
+	var result []byte
 
-	if _, err := io.Copy(buffer, f.Header); err != nil {
-		return 0, err
+	hb, err := f.Header.Serialize()
+
+	if err != nil {
+		return nil, err
 	}
+
+	result = append(result, hb...)
+
 	for _, content := range f.Contents {
-		if _, err := io.Copy(buffer, content); err != nil {
-			return 0, err
+		cb, err := content.Serialize()
+
+		if err != nil {
+			return nil, err
 		}
+
+		result = append(result, cb...)
 	}
 
-	return buffer.Read(p)
+	return result, nil
 }
 
 type Header struct {
@@ -46,29 +55,17 @@ type Header struct {
 	FrameCountBuffer *bytes.Buffer
 }
 
-func (h *Header) Read(p []byte) (n int, err error) {
-	buffer := &bytes.Buffer{}
+func (h *Header) Serialize() ([]byte, error) {
+	var result []byte
 
-	if _, err := io.Copy(buffer, h.SignatureBuffer); err != nil {
-		return 0, err
-	}
-	if _, err := io.Copy(buffer, h.VersionBuffer); err != nil {
-		return 0, err
-	}
-	if _, err := io.Copy(buffer, h.FileSizeBuffer); err != nil {
-		return 0, err
-	}
-	if _, err := io.Copy(buffer, h.RectBuffer); err != nil {
-		return 0, err
-	}
-	if _, err := io.Copy(buffer, h.FrameRateBuffer); err != nil {
-		return 0, err
-	}
-	if _, err := io.Copy(buffer, h.FrameCountBuffer); err != nil {
-		return 0, err
-	}
+	result = append(result, h.SignatureBuffer.Bytes()...)
+	result = append(result, h.VersionBuffer.Bytes()...)
+	result = append(result, h.FileSizeBuffer.Bytes()...)
+	result = append(result, h.RectBuffer.Bytes()...)
+	result = append(result, h.FrameRateBuffer.Bytes()...)
+	result = append(result, h.FrameCountBuffer.Bytes()...)
 
-	return buffer.Read(p)
+	return result, nil
 }
 
 func (h *Header) String() string {
@@ -79,22 +76,31 @@ func (h *Header) String() string {
 }
 
 type Content struct {
-	TagCode       TagCode
-	TagCodeBuffer *bytes.Buffer
-	DataBuffer    *bytes.Buffer
+	TagCode           TagCode
+	HasExtendedLength bool
+	TagCodeBuffer     *bytes.Buffer
+	DataBuffer        *bytes.Buffer
 }
 
-func (c *Content) Read(p []byte) (n int, err error) {
-	buffer := &bytes.Buffer{}
+func (c *Content) Serialize() ([]byte, error) {
+	var result []byte
 
-	if _, err := io.Copy(buffer, c.TagCodeBuffer); err != nil {
-		return 0, err
-	}
-	if _, err := io.Copy(buffer, c.DataBuffer); err != nil {
-		return 0, err
+	result = append(result, c.TagCodeBuffer.Bytes()...)
+
+	if c.HasExtendedLength {
+		size := len(c.DataBuffer.Bytes())
+		buffer := &bytes.Buffer{}
+
+		if err := binary.Write(buffer, binary.LittleEndian, uint32(size)); err != nil {
+			return nil, err
+		}
+
+		result = append(result, buffer.Bytes()...)
 	}
 
-	return buffer.Read(p)
+	result = append(result, c.DataBuffer.Bytes()...)
+
+	return result, nil
 }
 
 func (c *Content) String() string {
@@ -392,6 +398,7 @@ func parseContent(input io.Reader) (*Content, error) {
 
 	tagCodeValue := TagCode(tagCodeUint16 >> 6)
 
+	hasExtendedLength := false
 	length := int64(0b111111 & tagCodeUint16)
 
 	if length == 0b111111 {
@@ -413,6 +420,7 @@ func parseContent(input io.Reader) (*Content, error) {
 			return nil, fmt.Errorf("failed to read extended tag code length as uint32: %w", err)
 		}
 
+		hasExtendedLength = true
 		length = int64(u32)
 	}
 	switch tagCodeValue {
@@ -434,9 +442,10 @@ func parseContent(input io.Reader) (*Content, error) {
 	}
 
 	content := &Content{
-		TagCode:       tagCodeValue,
-		TagCodeBuffer: tagCode,
-		DataBuffer:    data,
+		TagCode:           tagCodeValue,
+		HasExtendedLength: hasExtendedLength,
+		TagCodeBuffer:     tagCode,
+		DataBuffer:        data,
 	}
 
 	return content, nil
