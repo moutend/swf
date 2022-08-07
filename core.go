@@ -12,7 +12,7 @@ import (
 
 type File struct {
 	Header   *Header
-	Contents []*Content
+	Contents ContentSlice
 }
 
 func (f *File) Serialize() ([]byte, error) {
@@ -26,15 +26,13 @@ func (f *File) Serialize() ([]byte, error) {
 
 	result = append(result, hb...)
 
-	for _, content := range f.Contents {
-		cb, err := content.Serialize()
+	cb, err := f.Contents.Serialize()
 
-		if err != nil {
-			return nil, err
-		}
-
-		result = append(result, cb...)
+	if err != nil {
+		return nil, err
 	}
+
+	result = append(result, cb...)
 
 	return result, nil
 }
@@ -76,29 +74,39 @@ func (h *Header) String() string {
 }
 
 type Content struct {
-	TagCode           TagCode
-	HasExtendedLength bool
-	TagCodeBuffer     *bytes.Buffer
-	DataBuffer        *bytes.Buffer
+	TagCode            TagCode
+	HasExtendedLength  bool
+	DefineSpriteLength int64
+	TagCodeBuffer      *bytes.Buffer
+	DataBuffer         *bytes.Buffer
 }
 
-func (c *Content) Serialize() ([]byte, error) {
+type ContentSlice []*Content
+
+func (c ContentSlice) Serialize() ([]byte, error) {
 	var result []byte
 
-	result = append(result, c.TagCodeBuffer.Bytes()...)
+	for i := range c {
+		result = append(result, c[i].TagCodeBuffer.Bytes()...)
 
-	if c.HasExtendedLength {
-		size := len(c.DataBuffer.Bytes())
-		buffer := &bytes.Buffer{}
+		if c[i].HasExtendedLength {
+			length := len(c[i].DataBuffer.Bytes())
 
-		if err := binary.Write(buffer, binary.LittleEndian, uint32(size)); err != nil {
-			return nil, err
+			if c[i].TagCode == DefineSprite {
+				length = int(c[i].DefineSpriteLength)
+			}
+
+			buffer := &bytes.Buffer{}
+
+			if err := binary.Write(buffer, binary.LittleEndian, uint32(length)); err != nil {
+				return nil, err
+			}
+
+			result = append(result, buffer.Bytes()...)
 		}
 
-		result = append(result, buffer.Bytes()...)
+		result = append(result, c[i].DataBuffer.Bytes()...)
 	}
-
-	result = append(result, c.DataBuffer.Bytes()...)
 
 	return result, nil
 }
@@ -400,6 +408,7 @@ func parseContent(input io.Reader) (*Content, error) {
 
 	hasExtendedLength := false
 	length := int64(0b111111 & tagCodeUint16)
+	var defineSpriteLength int64
 
 	if length == 0b111111 {
 		// Read the extended length. (Fixed size, 4 byte, little endian)
@@ -425,6 +434,7 @@ func parseContent(input io.Reader) (*Content, error) {
 	}
 	switch tagCodeValue {
 	case DefineSprite:
+		defineSpriteLength = length
 		length = 4
 	default:
 		// do nothing
@@ -442,10 +452,11 @@ func parseContent(input io.Reader) (*Content, error) {
 	}
 
 	content := &Content{
-		TagCode:           tagCodeValue,
-		HasExtendedLength: hasExtendedLength,
-		TagCodeBuffer:     tagCode,
-		DataBuffer:        data,
+		TagCode:            tagCodeValue,
+		HasExtendedLength:  hasExtendedLength,
+		DefineSpriteLength: defineSpriteLength,
+		TagCodeBuffer:      tagCode,
+		DataBuffer:         data,
 	}
 
 	return content, nil
