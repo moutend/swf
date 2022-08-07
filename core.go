@@ -15,6 +15,21 @@ type File struct {
 	Contents []*Content
 }
 
+func (f *File) Read(p []byte) (n int, err error) {
+	buffer := &bytes.Buffer{}
+
+	if _, err := io.Copy(buffer, f.Header); err != nil {
+		return 0, err
+	}
+	for _, content := range f.Contents {
+		if _, err := io.Copy(buffer, content); err != nil {
+			return 0, err
+		}
+	}
+
+	return buffer.Read(p)
+}
+
 type Header struct {
 	Signature  string
 	Version    uint8
@@ -31,6 +46,31 @@ type Header struct {
 	FrameCountBuffer *bytes.Buffer
 }
 
+func (h *Header) Read(p []byte) (n int, err error) {
+	buffer := &bytes.Buffer{}
+
+	if _, err := io.Copy(buffer, h.SignatureBuffer); err != nil {
+		return 0, err
+	}
+	if _, err := io.Copy(buffer, h.VersionBuffer); err != nil {
+		return 0, err
+	}
+	if _, err := io.Copy(buffer, h.FileSizeBuffer); err != nil {
+		return 0, err
+	}
+	if _, err := io.Copy(buffer, h.RectBuffer); err != nil {
+		return 0, err
+	}
+	if _, err := io.Copy(buffer, h.FrameRateBuffer); err != nil {
+		return 0, err
+	}
+	if _, err := io.Copy(buffer, h.FrameCountBuffer); err != nil {
+		return 0, err
+	}
+
+	return buffer.Read(p)
+}
+
 func (h *Header) String() string {
 	return fmt.Sprintf(
 		"Header{Signature: %q, Version: %d, FileSize: %d, Rect: %+v, FrameRate: %.2f, FrameCount: %d}",
@@ -42,6 +82,19 @@ type Content struct {
 	TagCode       TagCode
 	TagCodeBuffer *bytes.Buffer
 	DataBuffer    *bytes.Buffer
+}
+
+func (c *Content) Read(p []byte) (n int, err error) {
+	buffer := &bytes.Buffer{}
+
+	if _, err := io.Copy(buffer, c.TagCodeBuffer); err != nil {
+		return 0, err
+	}
+	if _, err := io.Copy(buffer, c.DataBuffer); err != nil {
+		return 0, err
+	}
+
+	return buffer.Read(p)
 }
 
 func (c *Content) String() string {
