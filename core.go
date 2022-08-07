@@ -15,9 +15,37 @@ type File struct {
 	Contents []*Content
 }
 
+type Header struct {
+	Signature  string
+	Version    uint8
+	FileSize   uint32
+	Rect       []uint32
+	FrameRate  float32
+	FrameCount uint16
+
+	SignatureBuffer  *bytes.Buffer
+	VersionBuffer    *bytes.Buffer
+	FileSizeBuffer   *bytes.Buffer
+	RectBuffer       *bytes.Buffer
+	FrameRateBuffer  *bytes.Buffer
+	FrameCountBuffer *bytes.Buffer
+}
+
+func (h *Header) String() string {
+	return fmt.Sprintf(
+		"Header{Signature: %q, Version: %d, FileSize: %d, Rect: %+v, FrameRate: %.2f, FrameCount: %d}",
+		h.Signature, h.Version, h.FileSize, h.Rect, h.FrameRate, h.FrameCount,
+	)
+}
+
 type Content struct {
-	TagCode TagCode
-	Data    *bytes.Buffer
+	TagCode       TagCode
+	TagCodeBuffer *bytes.Buffer
+	DataBuffer    *bytes.Buffer
+}
+
+func (c *Content) String() string {
+	return fmt.Sprintf("Content{TagCode: %s, Data: %d bytes}", c.TagCode, len(c.DataBuffer.Bytes()))
 }
 
 func Parse(name string) (*File, error) {
@@ -36,29 +64,6 @@ func Parse(name string) (*File, error) {
 	}
 
 	return file, nil
-}
-
-type Header struct {
-	Signature  string
-	Version    uint8
-	FileSize   uint32
-	Rect       []uint32
-	FrameRate  float32
-	FrameCount uint16
-
-	rawSignature  *bytes.Buffer
-	rawVersion    *bytes.Buffer
-	rawFileSize   *bytes.Buffer
-	rawRect       *bytes.Buffer
-	rawFrameRate  *bytes.Buffer
-	rawFrameCount *bytes.Buffer
-}
-
-func (h *Header) String() string {
-	return fmt.Sprintf(
-		"Header{Signature: %q, Version: %d, FileSize: %d, Rect: %+v, FrameRate: %.2f, FrameCount: %d}",
-		h.Signature, h.Version, h.FileSize, h.Rect, h.FrameRate, h.FrameCount,
-	)
 }
 
 func parseFile(input io.Reader) (*File, error) {
@@ -234,18 +239,18 @@ func parseFile(input io.Reader) (*File, error) {
 	}
 
 	header := &Header{
-		Signature:     signature.String(),
-		Version:       uint8(version.Bytes()[0]),
-		FileSize:      fileSizeUint32,
-		Rect:          rectUint32Slice,
-		FrameRate:     frameRateFloat32,
-		FrameCount:    frameCountUint16,
-		rawSignature:  signature,
-		rawVersion:    version,
-		rawFileSize:   fileSize,
-		rawRect:       rect,
-		rawFrameRate:  frameRate,
-		rawFrameCount: frameCount,
+		Signature:        signature.String(),
+		Version:          uint8(version.Bytes()[0]),
+		FileSize:         fileSizeUint32,
+		Rect:             rectUint32Slice,
+		FrameRate:        frameRateFloat32,
+		FrameCount:       frameCountUint16,
+		SignatureBuffer:  signature,
+		VersionBuffer:    version,
+		FileSizeBuffer:   fileSize,
+		RectBuffer:       rect,
+		FrameRateBuffer:  frameRate,
+		FrameCountBuffer: frameCount,
 	}
 
 	file := &File{
@@ -321,9 +326,18 @@ func parseContent(input io.Reader) (*Content, error) {
 
 	var tagCodeUint16 uint16
 
-	if err := binary.Read(tagCode, binary.LittleEndian, &tagCodeUint16); err != nil {
-		return nil, fmt.Errorf("failed to read tag code as uint16: %w", err)
+	{
+		w := &bytes.Buffer{}
+		r := io.TeeReader(tagCode, w)
+
+		if err := binary.Read(r, binary.LittleEndian, &tagCodeUint16); err != nil {
+			return nil, fmt.Errorf("failed to read tag code as uint16: %w", err)
+		}
+
+		tagCode = w
 	}
+
+	tagCodeValue := TagCode(tagCodeUint16 >> 6)
 
 	length := int64(0b111111 & tagCodeUint16)
 
@@ -361,8 +375,9 @@ func parseContent(input io.Reader) (*Content, error) {
 	}
 
 	content := &Content{
-		TagCode: TagCode(tagCodeUint16 >> 6),
-		Data:    data,
+		TagCode:       tagCodeValue,
+		TagCodeBuffer: tagCode,
+		DataBuffer:    data,
 	}
 
 	return content, nil
