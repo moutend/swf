@@ -84,7 +84,15 @@ func UnmarshalRect(input io.Reader) (*RectContent, error) {
 		return nil, fmt.Errorf("broken data")
 	}
 
-	bitsPerField := int(data.Bytes()[0] >> 3)
+	bits := fmt.Sprintf("%08b", data.Bytes()[0])
+
+	i64, err := strconv.ParseInt(bits[:5], 2, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
+	bitsPerField := int(i64)
 	remainingBits := bitsPerField*4 - 3
 	requiredBits := 0
 
@@ -108,21 +116,21 @@ func UnmarshalRect(input io.Reader) (*RectContent, error) {
 	var s string
 
 	for _, b := range data.Bytes() {
-		s = fmt.Sprintf("%08b", b)
+		s += fmt.Sprintf("%08b", b)
 	}
 
 	values := make([]uint32, 4)
 	start := 5
 
 	for i := 0; i < 4; i++ {
-		i64, err := strconv.ParseInt(s[start:start+requiredBits], 2, 64)
+		i64, err := strconv.ParseInt(s[start:start+bitsPerField], 2, 64)
 
 		if err != nil {
 			return nil, err
 		}
 
 		values[i] = uint32(i64)
-
+		fmt.Println("@@@value", values[i])
 		start += bitsPerField
 	}
 
