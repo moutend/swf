@@ -231,7 +231,7 @@ func parseFile(input io.Reader) (*File, error) {
 		return nil, fmt.Errorf("failed to read first 5 bits from RECT: %w", err)
 	}
 	if bitsPerField <= 0 {
-		return nil, fmt.Errorf("unexpected RECT bits per field: %w", bitsPerField)
+		return nil, fmt.Errorf("unexpected RECT bits per field: %d", bitsPerField)
 	}
 
 	var rectBits int64 = bitsPerField*4 - 3

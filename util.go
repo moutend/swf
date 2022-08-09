@@ -11,7 +11,6 @@ import (
 type DefineShapeContent struct {
 	ID          uint16
 	ShapeBounds *RectContent
-	EdgeBounds  *RectContent
 	IDBuffer    *bytes.Buffer
 }
 
@@ -47,16 +46,9 @@ func UnmarshalDefineShape(input io.Reader) (*DefineShapeContent, error) {
 		return nil, err
 	}
 
-	edgeBounds, err := UnmarshalRect(input)
-
-	if err != nil {
-		return nil, err
-	}
-
 	result := &DefineShapeContent{
 		ID:          idUint16,
 		ShapeBounds: shapeBounds,
-		EdgeBounds:  edgeBounds,
 		IDBuffer:    id,
 	}
 
