@@ -80,3 +80,19 @@ func ReadRGBA(src io.Reader) (*Color, error) {
 
 	return &Color{red, green, blue, alpha, w}, nil
 }
+
+type ShapeStyles struct {
+	data *bytes.Buffer
+}
+
+func ReadShapeStyles(input io.Reader) (*ShapeStyles, error) {
+	// TODO: implement me!
+	return nil, nil
+}
+
+type FillStyle struct {
+}
+
+func ReadFillStyle(src io.Reader, shapeVersion uint8) (*FillStyle, error) {
+	return nil, nil
+}
