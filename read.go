@@ -18,10 +18,10 @@ type Color struct {
 
 func (c *Color) String() string {
 	if len(c.data.Bytes()) == 3 {
-		return fmt.Sprintf("Color{%d %d %d}", c.Red, c.Green, c.Blue)
+		return fmt.Sprintf("Color{0x%x 0x%x 0x%x}", c.Red, c.Green, c.Blue)
 	}
 
-	return fmt.Sprintf("Color{%d %d %d %d}", c.Red, c.Green, c.Blue, c.Alpha)
+	return fmt.Sprintf("Color{0x%x 0x%x 0x%x 0x%x}", c.Red, c.Green, c.Blue, c.Alpha)
 }
 
 func (c *Color) Serialize() ([]byte, error) {
