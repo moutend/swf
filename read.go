@@ -5,7 +5,133 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strconv"
 )
+
+type Rectangle struct {
+	BitsPerField int
+	MinX         uint32
+	MaxX         uint32
+	MinY         uint32
+	MaxY         uint32
+
+	data *bytes.Buffer
+}
+
+func (r *Rectangle) String() string {
+	return fmt.Sprintf("Rectangle{%d %d %d %d}", r.MinX, r.MaxX, r.MinY, r.MaxY)
+}
+
+func (r *Rectangle) Serialize() ([]byte, error) {
+	s := fmt.Sprintf("%05b", uint8(r.BitsPerField))
+	s += fmt.Sprintf("%032b", r.MinX)[32-r.BitsPerField:]
+	s += fmt.Sprintf("%032b", r.MaxX)[32-r.BitsPerField:]
+	s += fmt.Sprintf("%032b", r.MinY)[32-r.BitsPerField:]
+	s += fmt.Sprintf("%032b", r.MaxY)[32-r.BitsPerField:]
+
+	padding := len(s) % 8
+
+	for i := 0; i < padding; i++ {
+		s += "0"
+	}
+
+	var data []byte
+
+	for i := 0; i <= len(s); i += 8 {
+		i64, err := strconv.ParseInt(s[i:i+8], 2, 64)
+
+		if err != nil {
+			return nil, err
+		}
+
+		data = append(data, byte(i64))
+	}
+
+	return data, nil
+}
+
+func (r *Rectangle) Data() []byte {
+	var data []byte
+
+	data = append(data, r.data.Bytes()...)
+
+	return data
+}
+
+func ReadRectangle(src io.Reader) (*Rectangle, error) {
+	data := &bytes.Buffer{}
+
+	dataLength, err := io.CopyN(data, src, 1)
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != 1 {
+		return nil, fmt.Errorf("ReadRectangle: broken data")
+	}
+
+	// Read the first 5 bits.
+	bits := fmt.Sprintf("%08b", data.Bytes()[0])
+
+	i64, err := strconv.ParseInt(bits[:5], 2, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
+	bitsPerField := int(i64)
+	remainingBits := bitsPerField*4 - 3
+	requiredBits := 0
+
+	for {
+		if requiredBits >= remainingBits {
+			break
+		}
+
+		requiredBits += 8
+	}
+
+	dataLength, err = io.CopyN(data, src, int64(requiredBits/8))
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != int64(requiredBits/8) {
+		return nil, fmt.Errorf("broken data")
+	}
+
+	var s string
+
+	for _, b := range data.Bytes() {
+		s += fmt.Sprintf("%08b", b)
+	}
+
+	values := make([]uint32, 4)
+	start := 5
+
+	for i := 0; i < 4; i++ {
+		i64, err := strconv.ParseInt(s[start:start+bitsPerField], 2, 64)
+
+		if err != nil {
+			return nil, err
+		}
+
+		values[i] = uint32(i64)
+
+		start += bitsPerField
+	}
+
+	rectangle := &Rectangle{
+		BitsPerField: bitsPerField,
+		MinX:         values[0],
+		MaxX:         values[1],
+		MinY:         values[2],
+		MaxY:         values[3],
+		data:         data,
+	}
+
+	return rectangle, nil
+}
 
 type Color struct {
 	Red   uint8
