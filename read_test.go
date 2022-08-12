@@ -7,6 +7,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestReadRectangle(t *testing.T) {
+	data := []byte{0x78, 0x00, 0x03, 0xe8, 0x00, 0x00, 0x13, 0x88, 0x00}
+	buffer := bytes.NewBuffer(data)
+
+	rectangle, err := ReadRectangle(buffer)
+
+	require.NoError(t, err)
+	require.NotNil(t, rectangle)
+
+	require.Equal(t, 15, rectangle.BitsPerField)
+	require.Equal(t, uint32(0), rectangle.MinX)
+	require.Equal(t, uint32(8000), rectangle.MaxX)
+	require.Equal(t, uint32(0), rectangle.MinY)
+	require.Equal(t, uint32(10000), rectangle.MaxY)
+
+	require.Equal(t, data, rectangle.Data())
+	require.Equal(t, "Rectangle{0 8000 0 10000}", rectangle.String())
+
+	d1, err := rectangle.Serialize()
+
+	require.NoError(t, err)
+	require.Equal(t, data, d1)
+}
+
 func TestReadRGB(t *testing.T) {
 	input := bytes.NewBuffer([]byte{0x12, 0x34, 0x56, 0x78, 0x90})
 

@@ -23,21 +23,26 @@ func (r *Rectangle) String() string {
 }
 
 func (r *Rectangle) Serialize() ([]byte, error) {
-	s := fmt.Sprintf("%05b", uint8(r.BitsPerField))
+	var s string
+
+	s += fmt.Sprintf("%05b", uint8(r.BitsPerField))
 	s += fmt.Sprintf("%032b", r.MinX)[32-r.BitsPerField:]
 	s += fmt.Sprintf("%032b", r.MaxX)[32-r.BitsPerField:]
 	s += fmt.Sprintf("%032b", r.MinY)[32-r.BitsPerField:]
 	s += fmt.Sprintf("%032b", r.MaxY)[32-r.BitsPerField:]
 
-	padding := len(s) % 8
+	zeroPadding := len(s) % 8
 
-	for i := 0; i < padding; i++ {
+	if zeroPadding > 0 {
+		zeroPadding = 8 - zeroPadding
+	}
+	for i := 0; i < zeroPadding; i++ {
 		s += "0"
 	}
 
 	var data []byte
 
-	for i := 0; i <= len(s); i += 8 {
+	for i := 0; i < len(s); i += 8 {
 		i64, err := strconv.ParseInt(s[i:i+8], 2, 64)
 
 		if err != nil {
