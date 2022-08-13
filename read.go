@@ -2,11 +2,520 @@ package swf
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 )
+
+type File struct {
+	Signature  *Signature
+	Version    *Uint8
+	Rectangle  *Rectangle
+	FrameRate  *FrameRate
+	FrameCount *Uint16
+	Contents   ContentSlice
+}
+
+func (f *File) String() string {
+	if f == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("File{Compressed: %v, Version: %d, FileSize: %d, Width: %d, Height: %d}", f.Signature.Value == SignatureCompressed, f.Version.Value, f.FileSize.Value, f.Rectangle.MaxX/20, f.Rectangle.MaxY/20)
+}
+
+func (f *File) Data() []byte {
+	if f == nil {
+		return nil
+	}
+
+	return nil
+}
+
+func (f *File) Serialize() ([]byte, error) {
+	if f == nil {
+		return nil, fmt.Errorf("cannot serialize because File is nil")
+	}
+
+	signature, err := f.Signature.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	version, err := f.Version.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	fileSize, err := f.FileSize.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	rectangle, err := f.Rectangle.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameRate, err := f.FrameRate.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameCount, err := f.FrameCount.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var data []byte
+
+	data = append(data, signature...)
+	data = append(data, version...)
+	data = append(data, fileSize...)
+	data = append(data, rectangle...)
+	data = append(data, frameRate...)
+	data = append(data, frameCount...)
+
+	return data, nil
+}
+
+func ReadFile(src io.Reader) (*File, error) {
+	signature, err := ReadSignature(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	version, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	fileSize, err := ReadUint32(src)
+
+	if err != nil {
+		return nil, err
+	}
+	if signature.Value == SignatureCompressed {
+		reader, err := zlib.NewReader(src)
+
+		if err != nil {
+			return nil, err
+		}
+
+		defer reader.Close()
+
+		content := &bytes.Buffer{}
+
+		contentLength, err := io.Copy(content, reader)
+
+		if err != nil {
+			return nil, err
+		}
+		if contentLength != int64(fileSize.Value)-8 {
+			return nil, fmt.Errorf("invalid content length: expected=%d, actual=%d", int64(fileSize.Value)-8, contentLength)
+		}
+
+		src = content
+	}
+
+	rectangle, err := ReadRectangle(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameRate, err := ReadFrameRate(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameCount, err := ReadUint16(src)
+
+	if err != nil {
+		return nil, err
+	}
+	if true {
+		// Read the frame count. (Fixed length, 2 byte, little endian)
+		frameCount := &bytes.Buffer{}
+
+		frameCountLength, err := io.CopyN(frameCount, input, 2)
+
+		if err != nil {
+			return nil, err
+		}
+		if frameCountLength != 2 {
+			return nil, fmt.Errorf("broken frame count")
+		}
+
+		var frameCountUint16 uint16
+
+		{
+			w := &bytes.Buffer{}
+			r := io.TeeReader(frameCount, w)
+
+			if err := binary.Read(r, binary.LittleEndian, &frameCountUint16); err != nil {
+				return nil, fmt.Errorf("failed to read frame count as uint16: %w", err)
+			}
+
+			frameCount = w
+		}
+	}
+	contents, err := parseContents(input)
+
+	if err != nil {
+		return nil, err
+	}
+
+	file := &File{
+		Signature:  signature,
+		Version:    version,
+		FileSize:   fileSize,
+		Rectangle:  rectangle,
+		FrameRate:  frameRate,
+		FrameCount: frameCount,
+		Contents:   contents,
+	}
+
+	return file, nil
+}
+
+const (
+	SignatureUncompressed = `SWF`
+	SignatureCompressed   = `SWC`
+)
+
+type Signature struct {
+	Value string
+	data  *bytes.Buffer
+}
+
+func (s *Signature) String() string {
+	if s == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("Signature{%q}", s.Value)
+}
+
+func (s *Signature) Data() []byte {
+	if s == nil || s.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, s.data.Bytes()...)
+
+	return data
+}
+
+func (s *Signature) Serialize() ([]byte, error) {
+	if s == nil {
+		return nil, fmt.Errorf("cannot serialize because Signature is nil")
+	}
+	switch s.Value {
+	case SignatureUncompressed:
+		return []byte(`FWS`)
+	case SignatureCompressed:
+		return []byte(`CWS`), nil
+	default:
+		return nil, fmt.Errorf("invalid signature: %q", s.Value)
+	}
+}
+
+func ReadSignature(src io.Reader) (*Signature, error) {
+	data := &bytes.Buffer{}
+
+	dataLength, err := io.CopyN(data, src, 3)
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != 3 {
+		return nil, fmt.Errorf("broken signature")
+	}
+	if data.String() != `FWS` && data.String() != `CWS` {
+		return nil, fmt.Errorf("invalid signature: %q", data.String())
+	}
+
+	var value string
+
+	if data.String() == `FWS` {
+		value = SignatureUncompressed
+	} else {
+		value = SignatureCompressed
+	}
+
+	signature := &Signature{
+		Value: value,
+		data:  data,
+	}
+
+	return signature, nil
+}
+
+type FrameRate struct {
+	Value float64
+	data  *bytes.Buffer
+}
+
+func (f *FrameRate) String() string {
+	if f == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("FrameRate{%.2f}", f.Value)
+}
+
+func (f *FrameRate) Data() []byte {
+	if f == nil || f.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, f.data.Bytes()...)
+
+	return data
+}
+
+func (f *FrameRate) Serialize() ([]byte, error) {
+	if f == nil {
+		return nil, fmt.Errorf("cannot serialize because FrameRate is nil")
+	}
+
+	a := uint8(f.Value)
+	b := uint8((f.Value - math.Floor(f.Value)) * 100.0)
+
+	return []byte{b, a}, nil
+}
+
+func ReadFrameRate(src io.Reader) (*FrameRate, error) {
+	data := &bytes.Buffer{}
+
+	frameRateLength, err := io.CopyN(frameRate, src, 2)
+
+	if err != nil {
+		return nil, err
+	}
+	if frameRateLength != 2 {
+		return nil, fmt.Errorf("broken FrameRate")
+	}
+
+	value := float64(uint8(frameRate.Bytes()[1])) + float64(uint8(frameRate.Bytes()[0]))/100.0
+
+	result := &FrameRate{
+		Value: value,
+		data:  data,
+	}
+
+	return result, nil
+}
+
+type Uint8 struct {
+	Value uint8
+	data  *bytes.Buffer
+}
+
+func (u *Uint16) String() string {
+	if u == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("Uint8{%d}", u.Value)
+}
+
+func (u *Uint8) Data() []byte {
+	if u == nil || u.data == nil {
+		return nil
+	}
+
+	return []byte{u.data.Bytes()[0]}
+}
+
+func (u *Uint8) Serialize() ([]byte, error) {
+	if u == nil {
+		return nil, fmt.Errorf("cannot serialize because Uint8 is nil")
+	}
+
+	return []byte{u.Value}, nil
+}
+
+func ReadUint8(src io.Reader) (*Uint8, error) {
+	data := &bytes.Buffer{}
+
+	dataLength, err := io.CopyN(data, input, 1)
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != 1 {
+		return nil, fmt.Errorf("broken Uint8")
+	}
+
+	result := &Uint8{
+		Value: uint8(data.Bytes()[0]),
+		data:  data,
+	}
+
+	return result, nil
+}
+
+type Uint16 struct {
+	Value uint16
+	data  *bytes.Buffer
+}
+
+func (u *Uint16) String() string {
+	if u == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("Uint16{%d}", u.Value)
+}
+
+func (u *Uint16) Data() []byte {
+	if u == nil || u.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, u.data.Bytes()...)
+
+	return data
+}
+
+func (u *Uint16) Serialize() ([]byte, error) {
+	if u == nil {
+		return nil, fmt.Errorf("cannot serialize because Uint32 is nil")
+	}
+
+	data := &bytes.buffer{}
+
+	if err := binary.Write(data, binary.LittleEndian, u.Value); err != nil {
+		return nil, err
+	}
+
+	return data.Bytes(), nil
+}
+
+func ReadUint16(src io.Reader) (*Uint16, error) {
+	data := &bytes.Buffer{}
+
+	dataLength, err := io.CopyN(data, input, 2)
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != 1 {
+		return nil, fmt.Errorf("broken Uint16")
+	}
+
+	var value uint16
+
+	{
+		w := &bytes.Buffer{}
+		r := io.TeeReader(data, w)
+
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return nil, fmt.Errorf("failed to read the buffer as uint16: %w", err)
+		}
+
+		data = w
+	}
+
+	result := &Uint16{
+		Value: value,
+		data:  data,
+	}
+
+	return result, nil
+}
+
+type Uint32 struct {
+	Value uint32
+	data  *bytes.Buffer
+}
+
+func (u *Uint32) String() string {
+	if u == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("Uint32{%d}", u.Value)
+}
+
+func (u *Uint32) Data() []byte {
+	if u == nil || u.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, u.data.Bytes()...)
+
+	return data
+}
+
+func (u *Uint32) Serialize() ([]byte, error) {
+	if u == nil {
+		return nil, fmt.Errorf("cannot serialize because Uint32 is nil")
+	}
+
+	data := &bytes.buffer{}
+
+	if err := binary.Write(data, binary.LittleEndian, u.Value); err != nil {
+		return nil, err
+	}
+
+	return data.Bytes(), nil
+}
+
+func ReadUint32(src io.Reader) (*Uint32, error) {
+	data := &bytes.Buffer{}
+
+	dataLength, err := io.CopyN(data, input, 4)
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != 4 {
+		return nil, fmt.Errorf("broken Uint32")
+	}
+
+	var value uint32
+
+	{
+		w := &bytes.Buffer{}
+		r := io.TeeReader(data, w)
+
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return nil, fmt.Errorf("failed to read the buffer as uint32: %w", err)
+		}
+
+		data = w
+	}
+
+	result := &Uint32{
+		Value: value,
+		data:  data,
+	}
+
+	return result, nil
+}
 
 type Rectangle struct {
 	BitsPerField int
@@ -14,15 +523,22 @@ type Rectangle struct {
 	MaxX         uint32
 	MinY         uint32
 	MaxY         uint32
-
-	data *bytes.Buffer
+	data         *bytes.Buffer
 }
 
 func (r *Rectangle) String() string {
+	if r == nil {
+		return "<nil>"
+	}
+
 	return fmt.Sprintf("Rectangle{%d %d %d %d}", r.MinX, r.MaxX, r.MinY, r.MaxY)
 }
 
 func (r *Rectangle) Serialize() ([]byte, error) {
+	if r == nil {
+		return nil, fmt.Errorf("cannot serialize because Rectangle is nil")
+	}
+
 	var s string
 
 	s += fmt.Sprintf("%05b", uint8(r.BitsPerField))
@@ -56,6 +572,10 @@ func (r *Rectangle) Serialize() ([]byte, error) {
 }
 
 func (r *Rectangle) Data() []byte {
+	if r == nil || r.data == nil {
+		return nil
+	}
+
 	var data []byte
 
 	data = append(data, r.data.Bytes()...)
@@ -148,6 +668,9 @@ type Color struct {
 }
 
 func (c *Color) String() string {
+	if c == nil {
+		return "<nil>"
+	}
 	if len(c.data.Bytes()) == 3 {
 		return fmt.Sprintf("Color{0x%x 0x%x 0x%x}", c.Red, c.Green, c.Blue)
 	}
@@ -156,6 +679,9 @@ func (c *Color) String() string {
 }
 
 func (c *Color) Serialize() ([]byte, error) {
+	if c == nil {
+		return nil, fmt.Errorf("cannot serialize because Color is nil")
+	}
 	switch len(c.data.Bytes()) {
 	case 3:
 		return []byte{c.Red, c.Green, c.Blue}, nil
@@ -167,6 +693,10 @@ func (c *Color) Serialize() ([]byte, error) {
 }
 
 func (c *Color) Data() []byte {
+	if c == nil || c.data == nil {
+		return nil
+	}
+
 	var data []byte
 
 	data = append(data, c.data.Bytes()...)
