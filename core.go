@@ -2,22 +2,181 @@ package swf
 
 import (
 	"bytes"
-	"encoding/binary"
+	"compress/zlib"
 	"fmt"
 	"io"
-	"strconv"
 )
 
-type Content struct {
-	TagCode            TagCode
-	HasExtendedLength  bool
-	DefineSpriteLength int64
-	TagCodeBuffer      *bytes.Buffer
-	DataBuffer         *bytes.Buffer
+type File struct {
+	Signature  *Signature
+	Version    *Uint8
+	Rectangle  *Rectangle
+	FrameRate  *FrameRate
+	FrameCount *Uint16
+	Contents   ContentSlice
 }
 
-type ContentSlice []*Content
+func (f *File) String() string {
+	if f == nil {
+		return "<nil>"
+	}
 
+	return fmt.Sprintf(
+		"File{Compressed: %v, Version: %d, FileSize: %d, Width: %d, Height: %d, FrameRate: %.2f, FrameCount: %d}",
+		f.Signature.Value == SignatureCompressed, f.Version.Value, f.FileSize.Value, f.Rectangle.MaxX/20, f.Rectangle.MaxY/20, f.FrameRate.Value, f.FrameCount.Value,
+	)
+}
+
+func (f *File) Data() []byte {
+	if f == nil {
+		return nil
+	}
+
+	return nil
+}
+
+func (f *File) Serialize() ([]byte, error) {
+	if f == nil {
+		return nil, fmt.Errorf("cannot serialize because File is nil")
+	}
+
+	signatureData, err := f.Signature.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	versionData, err := f.Version.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	fileSizeData, err := f.FileSize.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	rectangleData, err := f.Rectangle.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameRateData, err := f.FrameRate.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameCountData, err := f.FrameCount.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var data []byte
+
+	data = append(data, signatureData...)
+	data = append(data, versionData...)
+	data = append(data, fileSizeData...)
+
+	data = append(data, rectangleData...)
+	data = append(data, frameRateData...)
+	data = append(data, frameCountData...)
+
+	return data, nil
+}
+
+func Parse(src io.Reader) (*File, error) {
+	signature, err := ReadSignature(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	version, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	fileSize, err := ReadUint32(src)
+
+	if err != nil {
+		return nil, err
+	}
+	if signature.Value == SignatureCompressed {
+		reader, err := zlib.NewReader(src)
+
+		if err != nil {
+			return nil, err
+		}
+
+		defer reader.Close()
+
+		content := &bytes.Buffer{}
+
+		contentLength, err := io.Copy(content, reader)
+
+		if err != nil {
+			return nil, err
+		}
+		if contentLength != int64(fileSize.Value)-8 {
+			return nil, fmt.Errorf("invalid content length: expected=%d, actual=%d", int64(fileSize.Value)-8, contentLength)
+		}
+
+		src = content
+	}
+
+	rectangle, err := ReadRectangle(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameRate, err := ReadFrameRate(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameCount, err := ReadUint16(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	contents, err := parseContents(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	file := &File{
+		Signature:  signature,
+		Version:    version,
+		FileSize:   fileSize,
+		Rectangle:  rectangle,
+		FrameRate:  frameRate,
+		FrameCount: frameCount,
+		Contents:   contents,
+	}
+
+	return file, nil
+}
+
+type Content interface {
+	TagCode() TagCode
+	String() string
+	Data() []byte
+	Serialize() ([]byte, error)
+}
+
+type ContentSlice []Content
+
+/*
 func (c ContentSlice) Serialize() ([]byte, error) {
 	var result []byte
 
@@ -45,43 +204,13 @@ func (c ContentSlice) Serialize() ([]byte, error) {
 
 	return result, nil
 }
+*/
 
-func (c *Content) String() string {
-	return fmt.Sprintf("Content{TagCode: %s, Data: %d bytes}", c.TagCode, len(c.DataBuffer.Bytes()))
-}
-func parseHeaderRect(input []byte, bitsPerField int) ([]uint32, error) {
-	var s string
-
-	for i := range input {
-		s += fmt.Sprintf("%08b", input[i])
-	}
-
-	result := make([]uint32, 4)
-
-	// Ignore first 5 bits.
-	start := 5
-
-	for i := 0; i < 4; i++ {
-		n, err := strconv.ParseInt(s[start:start+bitsPerField], 2, 64)
-
-		if err != nil {
-			return nil, err
-		}
-
-		// Convert twip to px. // (20 twip = 1 px)
-		result[i] = uint32(n) / 20
-
-		start += bitsPerField
-	}
-
-	return result, nil
-}
-
-func parseContents(input io.Reader) ([]*Content, error) {
-	contents := []*Content{}
+func parseContents(src io.Reader) (ContentSlice, error) {
+	var contents ContentSlice
 
 	for {
-		content, err := parseContent(input)
+		content, err := parseContent(src)
 
 		if err == io.EOF {
 			break
@@ -96,11 +225,8 @@ func parseContents(input io.Reader) ([]*Content, error) {
 	return contents, nil
 }
 
-func parseContent(input io.Reader) (*Content, error) {
-	// Read the tag and its content length. (Fixed length, 2 byte, little endian)
-	tagCode := &bytes.Buffer{}
-
-	tagCodeLength, err := io.CopyN(tagCode, input, 2)
+func parseContent(src io.Reader) (Content, error) {
+	tag, err := ReadUint16(src)
 
 	if err == io.EOF {
 		return nil, err
@@ -108,77 +234,153 @@ func parseContent(input io.Reader) (*Content, error) {
 	if err != nil {
 		return nil, err
 	}
-	if tagCodeLength != 2 {
-		return nil, fmt.Errorf("broken tag code")
-	}
 
-	var tagCodeUint16 uint16
+	tagCode := TagCode(tag.Value >> 6)
+	length := int64(tag.Value & 0b111111)
 
-	{
-		w := &bytes.Buffer{}
-		r := io.TeeReader(tagCode, w)
-
-		if err := binary.Read(r, binary.LittleEndian, &tagCodeUint16); err != nil {
-			return nil, fmt.Errorf("failed to read tag code as uint16: %w", err)
-		}
-
-		tagCode = w
-	}
-
-	tagCodeValue := TagCode(tagCodeUint16 >> 6)
-
-	hasExtendedLength := false
-	length := int64(0b111111 & tagCodeUint16)
-	var defineSpriteLength int64
+	var extended *Uint32
 
 	if length == 0b111111 {
-		// Read the extended length. (Fixed size, 4 byte, little endian)
-		extended := &bytes.Buffer{}
-
-		extendedLength, err := io.CopyN(extended, input, 4)
+		extended, err = ReadUint32(src)
 
 		if err != nil {
 			return nil, err
 		}
-		if extendedLength != 4 {
-			return nil, fmt.Errorf("broken extended tag code length")
-		}
-
-		var u32 uint32
-
-		if err := binary.Read(extended, binary.LittleEndian, &u32); err != nil {
-			return nil, fmt.Errorf("failed to read extended tag code length as uint32: %w", err)
-		}
-
-		hasExtendedLength = true
-		length = int64(u32)
 	}
-	switch tagCodeValue {
-	case DefineSprite:
-		defineSpriteLength = length
-		length = 4
+
+	var content Content
+
+	switch tagCode {
+	case EndCode:
+		content = &End{}
 	default:
-		// do nothing
+		content, err = ParseUnknown(src, tag, extended)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+type End struct {
+	// No fields
+}
+
+func (e *End) TagCode() TagCode {
+	return EndCode
+}
+
+func (e *End) String() string {
+	if e == nil {
+		return "<nil"
+	}
+
+	return "End{}"
+}
+
+func (e *End) Data() []byte {
+	return []byte{0x00}
+}
+
+func (e *End) Serialize() ([]byte, error) {
+	if e == nil {
+		return nil, fmt.Errorf("cannot serialize because End is nil")
+	}
+
+	return []byte{0x00}, nil
+}
+
+type Unknown struct {
+	Tag      *Uint16
+	Extended *Uint32
+	data     *bytes.Buffer
+}
+
+func (u *Unknown) TagCode() TagCode {
+	return UnknownCode
+}
+
+func (u *Unknown) String() string {
+	if u == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("Unknown{%d bytes}", len(u.data.Bytes()))
+}
+
+func (u *Unknown) Data() []byte {
+	if u == nil || u.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	if u.Tag != nil {
+		data = append(data, u.Tag.Data()...)
+	}
+	if u.Extended != nil {
+		data = append(data, u.Extended.Bytes()...)
+	}
+
+	data = append(data, u.data.Bytes()...)
+
+	return data
+}
+
+func (u *Unknown) Serialize() ([]byte, error) {
+	if u == nil {
+		return nil, fmt.Errorf("cannot serialize because Unknown is nil")
+	}
+
+	var data []byte
+
+	tagData, err := u.Tag.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	extendedData, err := u.Extended.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	data = append(data, tagData...)
+	data = append(data, extendedData)
+	data = append(data, u.data.Bytes()...)
+
+	return data, nil
+}
+
+func ParseUnknown(src io.Reader, tag *Uint16, extended *Uint32) (*Unknown, error) {
+	if tag == nil {
+		return nil, fmt.Errorf("cannot parse because tag is nil")
+	}
+
+	length := int64(tag.Value & 0b111111)
+
+	if extended != nil {
+		length = int64(extended.Value)
 	}
 
 	data := &bytes.Buffer{}
 
-	dataLength, err := io.CopyN(data, input, length)
+	dataLength, err := io.CopyN(data, src, length)
 
 	if err != nil {
 		return nil, err
 	}
 	if dataLength != length {
-		return nil, fmt.Errorf("broken data")
+		return nil, fmt.Errorf("broken Unknown")
 	}
 
-	content := &Content{
-		TagCode:            tagCodeValue,
-		HasExtendedLength:  hasExtendedLength,
-		DefineSpriteLength: defineSpriteLength,
-		TagCodeBuffer:      tagCode,
-		DataBuffer:         data,
+	result := &Unknown{
+		Tag:      tag,
+		Extended: extended,
+		data:     data,
 	}
 
-	return content, nil
+	return result, nil
 }
