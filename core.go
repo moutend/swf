@@ -266,9 +266,6 @@ func parseContents(src io.Reader) (ContentSlice, error) {
 func parseContent(src io.Reader) (Content, error) {
 	tag, err := ReadUint16(src)
 
-	if err == io.EOF {
-		return nil, err
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -290,45 +287,88 @@ func parseContent(src io.Reader) (Content, error) {
 
 	switch tagCode {
 	case EndTagCode:
-		content = &End{}
+		content = ParseEnd(tag)
+	case ShowFrameTagCode:
+		content = ParseShowFrame(tag)
 	case SetBackgroundColorTagCode:
 		content, err = ParseSetBackgroundColor(src, tag)
 	default:
 		content, err = ParseUnknown(src, tag, extended)
 	}
-	if err != nil {
-		return nil, err
-	}
 
-	return content, nil
+	return content, err
 }
 
 type End struct {
-	// No fields
+	Tag *Uint16
 }
 
-func (e *End) TagCode() TagCode {
+func (v *End) TagCode() TagCode {
 	return EndTagCode
 }
 
-func (e *End) String() string {
-	if e == nil {
+func (v *End) String() string {
+	if v == nil {
 		return "<nil"
 	}
 
 	return "End{}"
 }
 
-func (e *End) Bytes() []byte {
-	return []byte{0x00}
-}
-
-func (e *End) Serialize() ([]byte, error) {
-	if e == nil {
-		return nil, fmt.Errorf("cannot serialize because End is nil")
+func (v *End) Bytes() []byte {
+	if v == nil {
+		return nil
 	}
 
-	return []byte{0x00}, nil
+	var data []byte
+
+	data = append(data, v.Tag.Bytes()...)
+
+	return data
+}
+
+func (v *End) Serialize() ([]byte, error) {
+	return v.Bytes(), nil
+}
+
+func ParseEnd(tag *Uint16) *End {
+	return &End{Tag: tag}
+}
+
+type ShowFrame struct {
+	Tag *Uint16
+}
+
+func (v *ShowFrame) TagCode() TagCode {
+	return ShowFrameTagCode
+}
+
+func (v *ShowFrame) String() string {
+	if v == nil {
+		return "<nil"
+	}
+
+	return "ShowFrame{}"
+}
+
+func (v *ShowFrame) Bytes() []byte {
+	if v == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, v.Tag.Bytes()...)
+
+	return data
+}
+
+func (v *ShowFrame) Serialize() ([]byte, error) {
+	return v.Bytes(), nil
+}
+
+func ParseShowFrame(tag *Uint16) *ShowFrame {
+	return &ShowFrame{Tag: tag}
 }
 
 type SetBackgroundColor struct {
@@ -336,49 +376,49 @@ type SetBackgroundColor struct {
 	Color *Color
 }
 
-func (s *SetBackgroundColor) TagCode() TagCode {
+func (v *SetBackgroundColor) TagCode() TagCode {
 	return SetBackgroundColorTagCode
 }
 
-func (s *SetBackgroundColor) String() string {
-	if s == nil {
+func (v *SetBackgroundColor) String() string {
+	if v == nil {
 		return "<nil>"
 	}
 
-	return fmt.Sprintf("SetBackgroundColor{Color: %s}", s.Color)
+	return fmt.Sprintf("SetBackgroundColor{Color: %s}", v.Color)
 }
 
-func (s *SetBackgroundColor) Bytes() []byte {
-	if s == nil {
+func (v *SetBackgroundColor) Bytes() []byte {
+	if v == nil {
 		return nil
 	}
 
 	var data []byte
 
-	if s.Tag != nil {
-		data = append(data, s.Tag.Bytes()...)
+	if v.Tag != nil {
+		data = append(data, v.Tag.Bytes()...)
 	}
-	if s.Color != nil {
-		data = append(data, s.Color.Bytes()...)
+	if v.Color != nil {
+		data = append(data, v.Color.Bytes()...)
 	}
 
 	return data
 }
 
-func (s *SetBackgroundColor) Serialize() ([]byte, error) {
-	if s == nil {
+func (v *SetBackgroundColor) Serialize() ([]byte, error) {
+	if v == nil {
 		return nil, fmt.Errorf("cannot serialize because SetBackgroundColor is nil")
 	}
 
 	var data []byte
 
-	tagData, err := s.Tag.Serialize()
+	tagData, err := v.Tag.Serialize()
 
 	if err != nil {
 		return nil, err
 	}
 
-	colorData, err := s.Color.Serialize()
+	colorData, err := v.Color.Serialize()
 
 	if err != nil {
 		return nil, err
@@ -415,51 +455,51 @@ type Unknown struct {
 	data     *bytes.Buffer
 }
 
-func (u *Unknown) TagCode() TagCode {
+func (v *Unknown) TagCode() TagCode {
 	return UnknownTagCode
 }
 
-func (u *Unknown) String() string {
-	if u == nil {
+func (v *Unknown) String() string {
+	if v == nil {
 		return "<nil>"
 	}
 
-	return fmt.Sprintf("Unknown{%d bytes}", len(u.data.Bytes()))
+	return fmt.Sprintf("Unknown{%d bytes}", len(v.data.Bytes()))
 }
 
-func (u *Unknown) Bytes() []byte {
-	if u == nil || u.data == nil {
+func (v *Unknown) Bytes() []byte {
+	if v == nil || v.data == nil {
 		return nil
 	}
 
 	var data []byte
 
-	if u.Tag != nil {
-		data = append(data, u.Tag.Bytes()...)
+	if v.Tag != nil {
+		data = append(data, v.Tag.Bytes()...)
 	}
-	if u.Extended != nil {
-		data = append(data, u.Extended.Bytes()...)
+	if v.Extended != nil {
+		data = append(data, v.Extended.Bytes()...)
 	}
 
-	data = append(data, u.data.Bytes()...)
+	data = append(data, v.data.Bytes()...)
 
 	return data
 }
 
-func (u *Unknown) Serialize() ([]byte, error) {
-	if u == nil {
+func (v *Unknown) Serialize() ([]byte, error) {
+	if v == nil {
 		return nil, fmt.Errorf("cannot serialize because Unknown is nil")
 	}
 
 	var data []byte
 
-	tagData, err := u.Tag.Serialize()
+	tagData, err := v.Tag.Serialize()
 
 	if err != nil {
 		return nil, err
 	}
 
-	extendedData, err := u.Extended.Serialize()
+	extendedData, err := v.Extended.Serialize()
 
 	if err != nil {
 		return nil, err
@@ -467,7 +507,7 @@ func (u *Unknown) Serialize() ([]byte, error) {
 
 	data = append(data, tagData...)
 	data = append(data, extendedData...)
-	data = append(data, u.data.Bytes()...)
+	data = append(data, v.data.Bytes()...)
 
 	return data, nil
 }
