@@ -254,6 +254,8 @@ func parseContent(src io.Reader) (Content, error) {
 	switch tagCode {
 	case EndTagCode:
 		content = &End{}
+	case SetBackgroundColorTagCode:
+		content, err = ParseSetBackgroundColor(src, tag)
 	default:
 		content, err = ParseUnknown(src, tag, extended)
 	}
@@ -290,6 +292,84 @@ func (e *End) Serialize() ([]byte, error) {
 	}
 
 	return []byte{0x00}, nil
+}
+
+type SetBackgroundColor struct {
+	Tag   *Uint16
+	Color *Color
+}
+
+func (s *SetBackgroundColor) TagCode() TagCode {
+	return SetBackgroundColorTagCode
+}
+
+func (s *SetBackgroundColor) String() string {
+	if s == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("SetBackgroundColor{Color: %s}", s.Color)
+}
+
+func (s *SetBackgroundColor) Data() []byte {
+	if s == nil {
+		return nil
+	}
+
+	var data []byte
+
+	if s.Tag != nil {
+		data = append(data, s.Tag.Data()...)
+	}
+	if s.Color != nil {
+		data = append(data, s.Color.Data()...)
+	}
+
+	return data
+}
+
+func (s *SetBackgroundColor) Serialize() ([]byte, error) {
+	if s == nil {
+		return nil, fmt.Errorf("cannot serialize because SetBackgroundColor is nil")
+	}
+
+	var data []byte
+
+	tagData, err := s.Tag.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	colorData, err := s.Color.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	data = append(data, tagData...)
+	data = append(data, colorData...)
+
+	return data, nil
+}
+
+func ParseSetBackgroundColor(src io.Reader, tag *Uint16) (*SetBackgroundColor, error) {
+	if tag == nil {
+		return nil, fmt.Errorf("cannot parse because tag is nil")
+	}
+
+	color, err := ReadRGB(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := &SetBackgroundColor{
+		Tag:   tag,
+		Color: color,
+	}
+
+	return result, nil
 }
 
 type Unknown struct {
