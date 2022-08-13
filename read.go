@@ -27,7 +27,7 @@ func (s *Signature) String() string {
 	return fmt.Sprintf("Signature{%q}", s.Value)
 }
 
-func (s *Signature) Data() []byte {
+func (s *Signature) Bytes() []byte {
 	if s == nil || s.data == nil {
 		return nil
 	}
@@ -97,7 +97,7 @@ func (f *FrameRate) String() string {
 	return fmt.Sprintf("FrameRate{%.2f}", f.Value)
 }
 
-func (f *FrameRate) Data() []byte {
+func (f *FrameRate) Bytes() []byte {
 	if f == nil || f.data == nil {
 		return nil
 	}
@@ -155,7 +155,7 @@ func (u *Uint8) String() string {
 	return fmt.Sprintf("Uint8{%d}", u.Value)
 }
 
-func (u *Uint8) Data() []byte {
+func (u *Uint8) Bytes() []byte {
 	if u == nil || u.data == nil {
 		return nil
 	}
@@ -204,7 +204,7 @@ func (u *Uint16) String() string {
 	return fmt.Sprintf("Uint16{%d}", u.Value)
 }
 
-func (u *Uint16) Data() []byte {
+func (u *Uint16) Bytes() []byte {
 	if u == nil || u.data == nil {
 		return nil
 	}
@@ -276,7 +276,7 @@ func (u *Uint32) String() string {
 	return fmt.Sprintf("Uint32{%d}", u.Value)
 }
 
-func (u *Uint32) Data() []byte {
+func (u *Uint32) Bytes() []byte {
 	if u == nil || u.data == nil {
 		return nil
 	}
@@ -352,7 +352,7 @@ func (r *Rectangle) String() string {
 	return fmt.Sprintf("Rectangle{%d %d %d %d}", r.MinX, r.MaxX, r.MinY, r.MaxY)
 }
 
-func (r *Rectangle) Data() []byte {
+func (r *Rectangle) Bytes() []byte {
 	if r == nil || r.data == nil {
 		return nil
 	}
@@ -496,7 +496,7 @@ func (c *Color) String() string {
 	return fmt.Sprintf("Color{0x%x 0x%x 0x%x 0x%x}", c.Red, c.Green, c.Blue, c.Alpha)
 }
 
-func (c *Color) Data() []byte {
+func (c *Color) Bytes() []byte {
 	if c == nil || c.data == nil {
 		return nil
 	}

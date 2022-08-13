@@ -28,12 +28,22 @@ func (f *File) String() string {
 	)
 }
 
-func (f *File) Data() []byte {
+func (f *File) Bytes() []byte {
 	if f == nil {
 		return nil
 	}
 
-	return nil
+	var data []byte
+
+	data = append(data, f.Signature.Bytes()...)
+	data = append(data, f.Version.Bytes()...)
+	data = append(data, f.FileSize.Bytes()...)
+	data = append(data, f.Rectangle.Bytes()...)
+	data = append(data, f.FrameRate.Bytes()...)
+	data = append(data, f.FrameCount.Bytes()...)
+	data = append(data, f.Contents.Bytes()...)
+
+	return data
 }
 
 func (f *File) Serialize() ([]byte, error) {
@@ -77,17 +87,44 @@ func (f *File) Serialize() ([]byte, error) {
 		return nil, err
 	}
 
-	var data []byte
+	contentsData, err := f.Contents.Serialize()
 
-	data = append(data, signatureData...)
-	data = append(data, versionData...)
-	data = append(data, fileSizeData...)
+	if err != nil {
+		return nil, err
+	}
 
-	data = append(data, rectangleData...)
-	data = append(data, frameRateData...)
-	data = append(data, frameCountData...)
+	var header []byte
 
-	return data, nil
+	header = append(header, signatureData...)
+	header = append(header, versionData...)
+	header = append(header, fileSizeData...)
+
+	var body []byte
+
+	body = append(body, rectangleData...)
+	body = append(body, frameRateData...)
+	body = append(body, frameCountData...)
+	body = append(body, contentsData...)
+
+	if f.Signature.Value == SignatureCompressed {
+		buffer := &bytes.Buffer{}
+		compressed := zlib.NewWriter(buffer)
+
+		if _, err := io.Copy(compressed, bytes.NewBuffer(body)); err != nil {
+			return nil, err
+		}
+
+		defer compressed.Close()
+
+		body = buffer.Bytes()
+	}
+
+	var result []byte
+
+	result = append(result, header...)
+	result = append(result, body...)
+
+	return result, nil
 }
 
 func Parse(src io.Reader) (*File, error) {
@@ -171,41 +208,41 @@ func Parse(src io.Reader) (*File, error) {
 type Content interface {
 	TagCode() TagCode
 	String() string
-	Data() []byte
+	Bytes() []byte
 	Serialize() ([]byte, error)
 }
 
 type ContentSlice []Content
 
-/*
-func (c ContentSlice) Serialize() ([]byte, error) {
-	var result []byte
+func (c ContentSlice) String() string {
+	return fmt.Sprintf("ContentSlice{%d items}", len(c))
+}
+
+func (c ContentSlice) Bytes() []byte {
+	var data []byte
 
 	for i := range c {
-		result = append(result, c[i].TagCodeBuffer.Bytes()...)
-
-		if c[i].HasExtendedLength {
-			length := len(c[i].DataBuffer.Bytes())
-
-			if c[i].TagCode == DefineSprite {
-				length = int(c[i].DefineSpriteLength)
-			}
-
-			buffer := &bytes.Buffer{}
-
-			if err := binary.Write(buffer, binary.LittleEndian, uint32(length)); err != nil {
-				return nil, err
-			}
-
-			result = append(result, buffer.Bytes()...)
-		}
-
-		result = append(result, c[i].DataBuffer.Bytes()...)
+		data = append(data, c[i].Bytes()...)
 	}
 
-	return result, nil
+	return data
 }
-*/
+
+func (c ContentSlice) Serialize() ([]byte, error) {
+	var data []byte
+
+	for i := range c {
+		contentData, err := c[i].Serialize()
+
+		if err != nil {
+			return nil, err
+		}
+
+		data = append(data, contentData...)
+	}
+
+	return data, nil
+}
 
 func parseContents(src io.Reader) (ContentSlice, error) {
 	var contents ContentSlice
@@ -282,7 +319,7 @@ func (e *End) String() string {
 	return "End{}"
 }
 
-func (e *End) Data() []byte {
+func (e *End) Bytes() []byte {
 	return []byte{0x00}
 }
 
@@ -311,7 +348,7 @@ func (s *SetBackgroundColor) String() string {
 	return fmt.Sprintf("SetBackgroundColor{Color: %s}", s.Color)
 }
 
-func (s *SetBackgroundColor) Data() []byte {
+func (s *SetBackgroundColor) Bytes() []byte {
 	if s == nil {
 		return nil
 	}
@@ -319,10 +356,10 @@ func (s *SetBackgroundColor) Data() []byte {
 	var data []byte
 
 	if s.Tag != nil {
-		data = append(data, s.Tag.Data()...)
+		data = append(data, s.Tag.Bytes()...)
 	}
 	if s.Color != nil {
-		data = append(data, s.Color.Data()...)
+		data = append(data, s.Color.Bytes()...)
 	}
 
 	return data
@@ -390,7 +427,7 @@ func (u *Unknown) String() string {
 	return fmt.Sprintf("Unknown{%d bytes}", len(u.data.Bytes()))
 }
 
-func (u *Unknown) Data() []byte {
+func (u *Unknown) Bytes() []byte {
 	if u == nil || u.data == nil {
 		return nil
 	}
@@ -398,10 +435,10 @@ func (u *Unknown) Data() []byte {
 	var data []byte
 
 	if u.Tag != nil {
-		data = append(data, u.Tag.Data()...)
+		data = append(data, u.Tag.Bytes()...)
 	}
 	if u.Extended != nil {
-		data = append(data, u.Extended.Data()...)
+		data = append(data, u.Extended.Bytes()...)
 	}
 
 	data = append(data, u.data.Bytes()...)
