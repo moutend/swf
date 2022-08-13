@@ -45,7 +45,7 @@ func (s *Signature) Serialize() ([]byte, error) {
 	}
 	switch s.Value {
 	case SignatureUncompressed:
-		return []byte(`FWS`)
+		return []byte(`FWS`), nil
 	case SignatureCompressed:
 		return []byte(`CWS`), nil
 	default:
@@ -123,16 +123,16 @@ func (f *FrameRate) Serialize() ([]byte, error) {
 func ReadFrameRate(src io.Reader) (*FrameRate, error) {
 	data := &bytes.Buffer{}
 
-	frameRateLength, err := io.CopyN(frameRate, src, 2)
+	dataLength, err := io.CopyN(data, src, 2)
 
 	if err != nil {
 		return nil, err
 	}
-	if frameRateLength != 2 {
+	if dataLength != 2 {
 		return nil, fmt.Errorf("broken FrameRate")
 	}
 
-	value := float64(uint8(frameRate.Bytes()[1])) + float64(uint8(frameRate.Bytes()[0]))/100.0
+	value := float64(uint8(data.Bytes()[1])) + float64(uint8(data.Bytes()[0]))/100.0
 
 	result := &FrameRate{
 		Value: value,
@@ -147,7 +147,7 @@ type Uint8 struct {
 	data  *bytes.Buffer
 }
 
-func (u *Uint16) String() string {
+func (u *Uint8) String() string {
 	if u == nil {
 		return "<nil>"
 	}
@@ -174,7 +174,7 @@ func (u *Uint8) Serialize() ([]byte, error) {
 func ReadUint8(src io.Reader) (*Uint8, error) {
 	data := &bytes.Buffer{}
 
-	dataLength, err := io.CopyN(data, input, 1)
+	dataLength, err := io.CopyN(data, src, 1)
 
 	if err != nil {
 		return nil, err
@@ -221,7 +221,7 @@ func (u *Uint16) Serialize() ([]byte, error) {
 		return nil, fmt.Errorf("cannot serialize because Uint32 is nil")
 	}
 
-	data := &bytes.buffer{}
+	data := &bytes.Buffer{}
 
 	if err := binary.Write(data, binary.LittleEndian, u.Value); err != nil {
 		return nil, err
@@ -233,12 +233,12 @@ func (u *Uint16) Serialize() ([]byte, error) {
 func ReadUint16(src io.Reader) (*Uint16, error) {
 	data := &bytes.Buffer{}
 
-	dataLength, err := io.CopyN(data, input, 2)
+	dataLength, err := io.CopyN(data, src, 2)
 
 	if err != nil {
 		return nil, err
 	}
-	if dataLength != 1 {
+	if dataLength != 2 {
 		return nil, fmt.Errorf("broken Uint16")
 	}
 
@@ -293,7 +293,7 @@ func (u *Uint32) Serialize() ([]byte, error) {
 		return nil, fmt.Errorf("cannot serialize because Uint32 is nil")
 	}
 
-	data := &bytes.buffer{}
+	data := &bytes.Buffer{}
 
 	if err := binary.Write(data, binary.LittleEndian, u.Value); err != nil {
 		return nil, err
@@ -305,7 +305,7 @@ func (u *Uint32) Serialize() ([]byte, error) {
 func ReadUint32(src io.Reader) (*Uint32, error) {
 	data := &bytes.Buffer{}
 
-	dataLength, err := io.CopyN(data, input, 4)
+	dataLength, err := io.CopyN(data, src, 4)
 
 	if err != nil {
 		return nil, err
@@ -352,6 +352,18 @@ func (r *Rectangle) String() string {
 	return fmt.Sprintf("Rectangle{%d %d %d %d}", r.MinX, r.MaxX, r.MinY, r.MaxY)
 }
 
+func (r *Rectangle) Data() []byte {
+	if r == nil || r.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, r.data.Bytes()...)
+
+	return data
+}
+
 func (r *Rectangle) Serialize() ([]byte, error) {
 	if r == nil {
 		return nil, fmt.Errorf("cannot serialize because Rectangle is nil")
@@ -387,18 +399,6 @@ func (r *Rectangle) Serialize() ([]byte, error) {
 	}
 
 	return data, nil
-}
-
-func (r *Rectangle) Data() []byte {
-	if r == nil || r.data == nil {
-		return nil
-	}
-
-	var data []byte
-
-	data = append(data, r.data.Bytes()...)
-
-	return data
 }
 
 func ReadRectangle(src io.Reader) (*Rectangle, error) {
@@ -496,6 +496,18 @@ func (c *Color) String() string {
 	return fmt.Sprintf("Color{0x%x 0x%x 0x%x 0x%x}", c.Red, c.Green, c.Blue, c.Alpha)
 }
 
+func (c *Color) Data() []byte {
+	if c == nil || c.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, c.data.Bytes()...)
+
+	return data
+}
+
 func (c *Color) Serialize() ([]byte, error) {
 	if c == nil {
 		return nil, fmt.Errorf("cannot serialize because Color is nil")
@@ -508,18 +520,6 @@ func (c *Color) Serialize() ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("broken Color")
 	}
-}
-
-func (c *Color) Data() []byte {
-	if c == nil || c.data == nil {
-		return nil
-	}
-
-	var data []byte
-
-	data = append(data, c.data.Bytes()...)
-
-	return data
 }
 
 func ReadRGB(src io.Reader) (*Color, error) {
@@ -558,20 +558,4 @@ func ReadRGBA(src io.Reader) (*Color, error) {
 	}
 
 	return &Color{red, green, blue, alpha, w}, nil
-}
-
-type ShapeStyles struct {
-	data *bytes.Buffer
-}
-
-func ReadShapeStyles(input io.Reader) (*ShapeStyles, error) {
-	// TODO: implement me!
-	return nil, nil
-}
-
-type FillStyle struct {
-}
-
-func ReadFillStyle(src io.Reader, shapeVersion uint8) (*FillStyle, error) {
-	return nil, nil
 }

@@ -10,6 +10,7 @@ import (
 type File struct {
 	Signature  *Signature
 	Version    *Uint8
+	FileSize   *Uint32
 	Rectangle  *Rectangle
 	FrameRate  *FrameRate
 	FrameCount *Uint16
@@ -320,7 +321,7 @@ func (u *Unknown) Data() []byte {
 		data = append(data, u.Tag.Data()...)
 	}
 	if u.Extended != nil {
-		data = append(data, u.Extended.Bytes()...)
+		data = append(data, u.Extended.Data()...)
 	}
 
 	data = append(data, u.data.Bytes()...)
@@ -348,7 +349,7 @@ func (u *Unknown) Serialize() ([]byte, error) {
 	}
 
 	data = append(data, tagData...)
-	data = append(data, extendedData)
+	data = append(data, extendedData...)
 	data = append(data, u.data.Bytes()...)
 
 	return data, nil

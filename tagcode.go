@@ -73,4 +73,5 @@ const (
 	DefineFont4Code                  TagCode = 91
 	EnableTelemetryCode              TagCode = 93
 	PlaceObject4Code                 TagCode = 94
+	UnknownCode                      TagCode = 0xffff
 )
