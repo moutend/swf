@@ -252,7 +252,7 @@ func parseContent(src io.Reader) (Content, error) {
 	var content Content
 
 	switch tagCode {
-	case EndCode:
+	case EndTagCode:
 		content = &End{}
 	default:
 		content, err = ParseUnknown(src, tag, extended)
@@ -269,7 +269,7 @@ type End struct {
 }
 
 func (e *End) TagCode() TagCode {
-	return EndCode
+	return EndTagCode
 }
 
 func (e *End) String() string {
@@ -299,7 +299,7 @@ type Unknown struct {
 }
 
 func (u *Unknown) TagCode() TagCode {
-	return UnknownCode
+	return UnknownTagCode
 }
 
 func (u *Unknown) String() string {
