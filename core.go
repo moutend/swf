@@ -290,255 +290,143 @@ func parseContent(src io.Reader) (Content, error) {
 		content = ParseEnd(tag)
 	case ShowFrameTagCode:
 		content = ParseShowFrame(tag)
+	case DefineShapeTagCode:
+		content, err = ParseDefineShape(src, tag, extended)
+	case PlaceObjectTagCode:
+		content, err = ParsePlaceObject(src, tag, extended)
+	case RemoveObjectTagCode:
+		content, err = ParseRemoveObject(src, tag, extended)
+	case DefineBitsTagCode:
+		content, err = ParseDefineBits(src, tag, extended)
+	case DefineButtonTagCode:
+		content, err = ParseDefineButton(src, tag, extended)
+	case JpegTablesTagCode:
+		content, err = ParseJpegTables(src, tag, extended)
 	case SetBackgroundColorTagCode:
 		content, err = ParseSetBackgroundColor(src, tag)
+	case DefineFontTagCode:
+		content, err = ParseDefineFont(src, tag, extended)
+	case DefineTextTagCode:
+		content, err = ParseDefineText(src, tag, extended)
+	case DoActionTagCode:
+		content, err = ParseDoAction(src, tag, extended)
+	case DefineFontInfoTagCode:
+		content, err = ParseDefineFontInfo(src, tag, extended)
+	case DefineSoundTagCode:
+		content, err = ParseDefineSound(src, tag, extended)
+	case StartSoundTagCode:
+		content, err = ParseStartSound(src, tag, extended)
+	case DefineButtonSoundTagCode:
+		content, err = ParseDefineButtonSound(src, tag, extended)
+	case SoundStreamHeadTagCode:
+		content, err = ParseSoundStreamHead(src, tag, extended)
+	case SoundStreamBlockTagCode:
+		content, err = ParseSoundStreamBlock(src, tag, extended)
+	case DefineBitsLosslessTagCode:
+		content, err = ParseDefineBitsLossless(src, tag, extended)
+	case DefineBitsJpeg2TagCode:
+		content, err = ParseDefineBitsJpeg2(src, tag, extended)
+	case DefineShape2TagCode:
+		content, err = ParseDefineShape2(src, tag, extended)
+	case DefineButtonCxformTagCode:
+		content, err = ParseDefineButtonCxform(src, tag, extended)
+	case ProtectTagCode:
+		content, err = ParseProtect(src, tag, extended)
+	case PlaceObject2TagCode:
+		content, err = ParsePlaceObject2(src, tag, extended)
+	case RemoveObject2TagCode:
+		content, err = ParseRemoveObject2(src, tag, extended)
+	case DefineShape3TagCode:
+		content, err = ParseDefineShape3(src, tag, extended)
+	case DefineText2TagCode:
+		content, err = ParseDefineText2(src, tag, extended)
+	case DefineButton2TagCode:
+		content, err = ParseDefineButton2(src, tag, extended)
+	case DefineBitsJpeg3TagCode:
+		content, err = ParseDefineBitsJpeg3(src, tag, extended)
+	case DefineBitsLossless2TagCode:
+		content, err = ParseDefineBitsLossless2(src, tag, extended)
+	case DefineEditTextTagCode:
+		content, err = ParseDefineEditText(src, tag, extended)
+	case DefineSpriteTagCode:
+		content, err = ParseDefineSprite(src, tag, extended)
+	case NameCharacterTagCode:
+		content, err = ParseNameCharacter(src, tag, extended)
+	case ProductInfoTagCode:
+		content, err = ParseProductInfo(src, tag, extended)
+	case FrameLabelTagCode:
+		content, err = ParseFrameLabel(src, tag, extended)
+	case SoundStreamHead2TagCode:
+		content, err = ParseSoundStreamHead2(src, tag, extended)
+	case DefineMorphShapeTagCode:
+		content, err = ParseDefineMorphShape(src, tag, extended)
+	case DefineFont2TagCode:
+		content, err = ParseDefineFont2(src, tag, extended)
+	case ExportAssetsTagCode:
+		content, err = ParseExportAssets(src, tag, extended)
+	case ImportAssetsTagCode:
+		content, err = ParseImportAssets(src, tag, extended)
+	case EnableDebuggerTagCode:
+		content, err = ParseEnableDebugger(src, tag, extended)
+	case DoInitActionTagCode:
+		content, err = ParseDoInitAction(src, tag, extended)
+	case DefineVideoStreamTagCode:
+		content, err = ParseDefineVideoStream(src, tag, extended)
+	case VideoFrameTagCode:
+		content, err = ParseVideoFrame(src, tag, extended)
+	case DefineFontInfo2TagCode:
+		content, err = ParseDefineFontInfo2(src, tag, extended)
+	case DebugIdTagCode:
+		content, err = ParseDebugId(src, tag, extended)
+	case EnableDebugger2TagCode:
+		content, err = ParseEnableDebugger2(src, tag, extended)
+	case ScriptLimitsTagCode:
+		content, err = ParseScriptLimits(src, tag, extended)
+	case SetTabIndexTagCode:
+		content, err = ParseSetTabIndex(src, tag, extended)
+	case FileAttributesTagCode:
+		content, err = ParseFileAttributes(src, tag, extended)
+	case PlaceObject3TagCode:
+		content, err = ParsePlaceObject3(src, tag, extended)
+	case ImportAssets2TagCode:
+		content, err = ParseImportAssets2(src, tag, extended)
+	case DefineFontAlignZonesTagCode:
+		content, err = ParseDefineFontAlignZones(src, tag, extended)
+	case CsmTextSettingsTagCode:
+		content, err = ParseCsmTextSettings(src, tag, extended)
+	case DefineFont3TagCode:
+		content, err = ParseDefineFont3(src, tag, extended)
+	case SymbolClassTagCode:
+		content, err = ParseSymbolClass(src, tag, extended)
+	case MetadataTagCode:
+		content, err = ParseMetadata(src, tag, extended)
+	case DefineScalingGridTagCode:
+		content, err = ParseDefineScalingGrid(src, tag, extended)
+	case DoAbcTagCode:
+		content, err = ParseDoAbc(src, tag, extended)
+	case DefineShape4TagCode:
+		content, err = ParseDefineShape4(src, tag, extended)
+	case DefineMorphShape2TagCode:
+		content, err = ParseDefineMorphShape2(src, tag, extended)
+	case DefineSceneAndFrameLabelDataTagCode:
+		content, err = ParseDefineSceneAndFrameLabelData(src, tag, extended)
+	case DefineBinaryDataTagCode:
+		content, err = ParseDefineBinaryData(src, tag, extended)
+	case DefineFontNameTagCode:
+		content, err = ParseDefineFontName(src, tag, extended)
+	case StartSound2TagCode:
+		content, err = ParseStartSound2(src, tag, extended)
+	case DefineBitsJpeg4TagCode:
+		content, err = ParseDefineBitsJpeg4(src, tag, extended)
+	case DefineFont4TagCode:
+		content, err = ParseDefineFont4(src, tag, extended)
+	case EnableTelemetryTagCode:
+		content, err = ParseEnableTelemetry(src, tag, extended)
+	case PlaceObject4TagCode:
+		content, err = ParsePlaceObject4(src, tag, extended)
 	default:
 		content, err = ParseUnknown(src, tag, extended)
 	}
 
 	return content, err
-}
-
-type End struct {
-	Tag *Uint16
-}
-
-func (v *End) TagCode() TagCode {
-	return EndTagCode
-}
-
-func (v *End) String() string {
-	if v == nil {
-		return "<nil"
-	}
-
-	return "End{}"
-}
-
-func (v *End) Bytes() []byte {
-	if v == nil {
-		return nil
-	}
-
-	var data []byte
-
-	data = append(data, v.Tag.Bytes()...)
-
-	return data
-}
-
-func (v *End) Serialize() ([]byte, error) {
-	return v.Bytes(), nil
-}
-
-func ParseEnd(tag *Uint16) *End {
-	return &End{Tag: tag}
-}
-
-type ShowFrame struct {
-	Tag *Uint16
-}
-
-func (v *ShowFrame) TagCode() TagCode {
-	return ShowFrameTagCode
-}
-
-func (v *ShowFrame) String() string {
-	if v == nil {
-		return "<nil"
-	}
-
-	return "ShowFrame{}"
-}
-
-func (v *ShowFrame) Bytes() []byte {
-	if v == nil {
-		return nil
-	}
-
-	var data []byte
-
-	data = append(data, v.Tag.Bytes()...)
-
-	return data
-}
-
-func (v *ShowFrame) Serialize() ([]byte, error) {
-	return v.Bytes(), nil
-}
-
-func ParseShowFrame(tag *Uint16) *ShowFrame {
-	return &ShowFrame{Tag: tag}
-}
-
-type SetBackgroundColor struct {
-	Tag   *Uint16
-	Color *Color
-}
-
-func (v *SetBackgroundColor) TagCode() TagCode {
-	return SetBackgroundColorTagCode
-}
-
-func (v *SetBackgroundColor) String() string {
-	if v == nil {
-		return "<nil>"
-	}
-
-	return fmt.Sprintf("SetBackgroundColor{Color: %s}", v.Color)
-}
-
-func (v *SetBackgroundColor) Bytes() []byte {
-	if v == nil {
-		return nil
-	}
-
-	var data []byte
-
-	if v.Tag != nil {
-		data = append(data, v.Tag.Bytes()...)
-	}
-	if v.Color != nil {
-		data = append(data, v.Color.Bytes()...)
-	}
-
-	return data
-}
-
-func (v *SetBackgroundColor) Serialize() ([]byte, error) {
-	if v == nil {
-		return nil, fmt.Errorf("cannot serialize because SetBackgroundColor is nil")
-	}
-
-	var data []byte
-
-	tagData, err := v.Tag.Serialize()
-
-	if err != nil {
-		return nil, err
-	}
-
-	colorData, err := v.Color.Serialize()
-
-	if err != nil {
-		return nil, err
-	}
-
-	data = append(data, tagData...)
-	data = append(data, colorData...)
-
-	return data, nil
-}
-
-func ParseSetBackgroundColor(src io.Reader, tag *Uint16) (*SetBackgroundColor, error) {
-	if tag == nil {
-		return nil, fmt.Errorf("cannot parse because tag is nil")
-	}
-
-	color, err := ReadRGB(src)
-
-	if err != nil {
-		return nil, err
-	}
-
-	result := &SetBackgroundColor{
-		Tag:   tag,
-		Color: color,
-	}
-
-	return result, nil
-}
-
-type Unknown struct {
-	Tag      *Uint16
-	Extended *Uint32
-	data     *bytes.Buffer
-}
-
-func (v *Unknown) TagCode() TagCode {
-	return UnknownTagCode
-}
-
-func (v *Unknown) String() string {
-	if v == nil {
-		return "<nil>"
-	}
-
-	return fmt.Sprintf("Unknown{%d bytes}", len(v.data.Bytes()))
-}
-
-func (v *Unknown) Bytes() []byte {
-	if v == nil || v.data == nil {
-		return nil
-	}
-
-	var data []byte
-
-	if v.Tag != nil {
-		data = append(data, v.Tag.Bytes()...)
-	}
-	if v.Extended != nil {
-		data = append(data, v.Extended.Bytes()...)
-	}
-
-	data = append(data, v.data.Bytes()...)
-
-	return data
-}
-
-func (v *Unknown) Serialize() ([]byte, error) {
-	if v == nil {
-		return nil, fmt.Errorf("cannot serialize because Unknown is nil")
-	}
-
-	var data []byte
-
-	tagData, err := v.Tag.Serialize()
-
-	if err != nil {
-		return nil, err
-	}
-
-	extendedData, err := v.Extended.Serialize()
-
-	if err != nil {
-		return nil, err
-	}
-
-	data = append(data, tagData...)
-	data = append(data, extendedData...)
-	data = append(data, v.data.Bytes()...)
-
-	return data, nil
-}
-
-func ParseUnknown(src io.Reader, tag *Uint16, extended *Uint32) (*Unknown, error) {
-	if tag == nil {
-		return nil, fmt.Errorf("cannot parse because tag is nil")
-	}
-
-	length := int64(tag.Value & 0b111111)
-
-	if extended != nil {
-		length = int64(extended.Value)
-	}
-
-	data := &bytes.Buffer{}
-
-	dataLength, err := io.CopyN(data, src, length)
-
-	if err != nil {
-		return nil, err
-	}
-	if dataLength != length {
-		return nil, fmt.Errorf("broken Unknown")
-	}
-
-	result := &Unknown{
-		Tag:      tag,
-		Extended: extended,
-		data:     data,
-	}
-
-	return result, nil
 }
