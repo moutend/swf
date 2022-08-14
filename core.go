@@ -133,25 +133,25 @@ func Parse(src io.Reader) (*File, error) {
 	signature, err := ReadSignature(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse File.Signature: %w", err)
 	}
 
 	version, err := ReadUint8(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse File.Version: %w", err)
 	}
 
 	fileSize, err := ReadUint32(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse File.FileSize: %w", err)
 	}
 	if signature.Value == SignatureCompressed {
 		reader, err := zlib.NewReader(src)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse File: %w", err)
 		}
 
 		defer reader.Close()
@@ -161,10 +161,10 @@ func Parse(src io.Reader) (*File, error) {
 		contentLength, err := io.Copy(content, reader)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse File: %w", err)
 		}
 		if contentLength != int64(fileSize.Value)-8 {
-			return nil, fmt.Errorf("invalid content length: expected=%d, actual=%d", int64(fileSize.Value)-8, contentLength)
+			return nil, fmt.Errorf("failed to parse File: content length must be %d but got %d", int64(fileSize.Value)-8, contentLength)
 		}
 
 		src = content
@@ -173,25 +173,25 @@ func Parse(src io.Reader) (*File, error) {
 	rectangle, err := ReadRectangle(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse File.Rectangle: %w", err)
 	}
 
 	frameRate, err := ReadFrameRate(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse File.FrameRate: %w", err)
 	}
 
 	frameCount, err := ReadUint16(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse File.FrameCount: %w", err)
 	}
 
 	contents, err := parseContents(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse File.Contents: %w", err)
 	}
 
 	file := &File{
@@ -248,6 +248,7 @@ func (c ContentSlice) Serialize() ([]byte, error) {
 
 func parseContents(src io.Reader) (ContentSlice, error) {
 	var contents ContentSlice
+	var i int
 
 	for {
 		content, err := parseContent(src)
@@ -256,10 +257,11 @@ func parseContents(src io.Reader) (ContentSlice, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse File.Contents[%d]: %w", i, err)
 		}
 
 		contents = append(contents, content)
+		i += 1
 	}
 
 	return contents, nil
