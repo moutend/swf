@@ -1,7 +1,6 @@
 package swf
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 )
@@ -9,7 +8,7 @@ import (
 type FileAttributes struct {
 	Tag      *Uint16
 	Extended *Uint32
-	data     *bytes.Buffer
+	Flags    *Uint32
 }
 
 func (v *FileAttributes) TagCode() TagCode {
@@ -21,7 +20,7 @@ func (v *FileAttributes) String() string {
 		return "<nil>"
 	}
 
-	return fmt.Sprintf("FileAttributes{%d bytes}", len(v.data.Bytes()))
+	return fmt.Sprintf("FileAttributes{}")
 }
 
 func (v *FileAttributes) Bytes() []byte {
@@ -34,11 +33,8 @@ func (v *FileAttributes) Bytes() []byte {
 	if v.Tag != nil {
 		data = append(data, v.Tag.Bytes()...)
 	}
-	if v.Extended != nil {
-		data = append(data, v.Extended.Bytes()...)
-	}
-	if v.data != nil {
-		data = append(data, v.data.Bytes()...)
+	if v.Flags != nil {
+		data = append(data, v.Flags.Bytes()...)
 	}
 
 	return data
@@ -46,7 +42,7 @@ func (v *FileAttributes) Bytes() []byte {
 
 func (v *FileAttributes) Serialize() ([]byte, error) {
 	if v == nil {
-		return nil, fmt.Errorf("cannot serialize because FileAttributes is nil")
+		return nil, fmt.Errorf("failed to serialize: FileAttributes is nil")
 	}
 
 	var data []byte
@@ -54,48 +50,41 @@ func (v *FileAttributes) Serialize() ([]byte, error) {
 	tagData, err := v.Tag.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize FileAttributes.Tag: %w", err)
 	}
 
-	extendedData, err := v.Extended.Serialize()
+	flagsData, err := v.Flags.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize FileAttributes.Flags: %w", err)
 	}
 
 	data = append(data, tagData...)
-	data = append(data, extendedData...)
-	data = append(data, v.data.Bytes()...)
+	data = append(data, flagsData...)
 
 	return data, nil
 }
 
-func ParseFileAttributes(src io.Reader, tag *Uint16, extended *Uint32) (*FileAttributes, error) {
+func ParseFileAttributes(src io.Reader, tag *Uint16) (*FileAttributes, error) {
 	if tag == nil {
-		return nil, fmt.Errorf("cannot parse because tag is nil")
+		return nil, fmt.Errorf("failed to parse FileAttributes.Tag: tag is nil")
 	}
 
 	length := int64(tag.Value & 0b111111)
 
-	if extended != nil {
-		length = int64(extended.Value)
+	if length != 4 {
+		return nil, fmt.Errorf("failed to parse FileAttributes.Tag: content length must be 4 bytes")
 	}
 
-	data := &bytes.Buffer{}
-
-	dataLength, err := io.CopyN(data, src, length)
+	flags, err := ReadUint32(src)
 
 	if err != nil {
-		return nil, err
-	}
-	if dataLength != length {
-		return nil, fmt.Errorf("broken FileAttributes")
+		return nil, fmt.Errorf("failed to parse FileAttributes.Flags: %w", err)
 	}
 
 	result := &FileAttributes{
-		Tag:      tag,
-		Extended: extended,
-		data:     data,
+		Tag:   tag,
+		Flags: flags,
 	}
 
 	return result, nil

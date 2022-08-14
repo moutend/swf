@@ -21,7 +21,10 @@ func (v *FrameLabel) String() string {
 		return "<nil>"
 	}
 
-	return fmt.Sprintf("FrameLabel{%d bytes}", len(v.data.Bytes()))
+	// Assumes null-terminated string.
+	value := v.data.String()
+
+	return fmt.Sprintf("FrameLabel{Value: %q}", value[:len(value)-1])
 }
 
 func (v *FrameLabel) Bytes() []byte {

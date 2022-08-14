@@ -41,7 +41,7 @@ func (v *SetBackgroundColor) Bytes() []byte {
 
 func (v *SetBackgroundColor) Serialize() ([]byte, error) {
 	if v == nil {
-		return nil, fmt.Errorf("cannot serialize because SetBackgroundColor is nil")
+		return nil, fmt.Errorf("failed to serialize: SetBackgroundColor is nil")
 	}
 
 	var data []byte
@@ -49,13 +49,13 @@ func (v *SetBackgroundColor) Serialize() ([]byte, error) {
 	tagData, err := v.Tag.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize SetBackgroundColor.Tag: %w", err)
 	}
 
 	colorData, err := v.Color.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize SetBackgroundColor.Color: %w", err)
 	}
 
 	data = append(data, tagData...)
@@ -66,13 +66,13 @@ func (v *SetBackgroundColor) Serialize() ([]byte, error) {
 
 func ParseSetBackgroundColor(src io.Reader, tag *Uint16) (*SetBackgroundColor, error) {
 	if tag == nil {
-		return nil, fmt.Errorf("cannot parse because tag is nil")
+		return nil, fmt.Errorf("failed to parse SetBackgroundColor.Tag: tag is nil")
 	}
 
 	color, err := ReadRGB(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse SetBackgroundColor.Color: %w", err)
 	}
 
 	result := &SetBackgroundColor{

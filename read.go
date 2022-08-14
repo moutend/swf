@@ -144,7 +144,7 @@ func ReadFrameRate(src io.Reader) (*FrameRate, error) {
 
 type Uint8 struct {
 	Value uint8
-	data  *bytes.Buffer
+	value uint8
 }
 
 func (u *Uint8) String() string {
@@ -156,16 +156,16 @@ func (u *Uint8) String() string {
 }
 
 func (u *Uint8) Bytes() []byte {
-	if u == nil || u.data == nil {
+	if u == nil {
 		return nil
 	}
 
-	return []byte{u.data.Bytes()[0]}
+	return []byte{u.value}
 }
 
 func (u *Uint8) Serialize() ([]byte, error) {
 	if u == nil {
-		return nil, fmt.Errorf("cannot serialize because Uint8 is nil")
+		return nil, nil
 	}
 
 	return []byte{u.Value}, nil
@@ -177,15 +177,15 @@ func ReadUint8(src io.Reader) (*Uint8, error) {
 	dataLength, err := io.CopyN(data, src, 1)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read Uint8: %w", err)
 	}
 	if dataLength != 1 {
-		return nil, fmt.Errorf("broken Uint8")
+		return nil, fmt.Errorf("failed to read Uint8: length must be 1 but got %d", dataLength)
 	}
 
 	result := &Uint8{
 		Value: uint8(data.Bytes()[0]),
-		data:  data,
+		value: uint8(data.Bytes()[0]),
 	}
 
 	return result, nil
@@ -218,13 +218,13 @@ func (u *Uint16) Bytes() []byte {
 
 func (u *Uint16) Serialize() ([]byte, error) {
 	if u == nil {
-		return nil, fmt.Errorf("cannot serialize because Uint32 is nil")
+		return nil, nil
 	}
 
 	data := &bytes.Buffer{}
 
 	if err := binary.Write(data, binary.LittleEndian, u.Value); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize Uint16: %w", err)
 	}
 
 	return data.Bytes(), nil
@@ -236,10 +236,10 @@ func ReadUint16(src io.Reader) (*Uint16, error) {
 	dataLength, err := io.CopyN(data, src, 2)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read Uint16: %w", err)
 	}
 	if dataLength != 2 {
-		return nil, fmt.Errorf("broken Uint16")
+		return nil, fmt.Errorf("failed to read Uint16: length must be 2 but got %d", dataLength)
 	}
 
 	var value uint16
@@ -249,7 +249,7 @@ func ReadUint16(src io.Reader) (*Uint16, error) {
 		r := io.TeeReader(data, w)
 
 		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
-			return nil, fmt.Errorf("failed to read the buffer as uint16: %w", err)
+			return nil, fmt.Errorf("failed to read Uint16: cannot read the buffer as uint16: %w", err)
 		}
 
 		data = w
@@ -290,13 +290,13 @@ func (u *Uint32) Bytes() []byte {
 
 func (u *Uint32) Serialize() ([]byte, error) {
 	if u == nil {
-		return nil, fmt.Errorf("cannot serialize because Uint32 is nil")
+		return nil, nil
 	}
 
 	data := &bytes.Buffer{}
 
 	if err := binary.Write(data, binary.LittleEndian, u.Value); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize Uint32: %w", err)
 	}
 
 	return data.Bytes(), nil
@@ -308,10 +308,10 @@ func ReadUint32(src io.Reader) (*Uint32, error) {
 	dataLength, err := io.CopyN(data, src, 4)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read Uint32: %w", err)
 	}
 	if dataLength != 4 {
-		return nil, fmt.Errorf("broken Uint32")
+		return nil, fmt.Errorf("failed to read Uint32: length must be 4 but got %d", dataLength)
 	}
 
 	var value uint32
@@ -321,7 +321,7 @@ func ReadUint32(src io.Reader) (*Uint32, error) {
 		r := io.TeeReader(data, w)
 
 		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
-			return nil, fmt.Errorf("failed to read the buffer as uint32: %w", err)
+			return nil, fmt.Errorf("failed to read Uint32: cannot read the buffer as uint32: %w", err)
 		}
 
 		data = w

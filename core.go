@@ -48,43 +48,43 @@ func (f *File) Bytes() []byte {
 
 func (f *File) Serialize() ([]byte, error) {
 	if f == nil {
-		return nil, fmt.Errorf("cannot serialize because File is nil")
+		return nil, fmt.Errorf("failed to serialize: File is nil")
 	}
 
 	signatureData, err := f.Signature.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize File.Signature: %w", err)
 	}
 
 	versionData, err := f.Version.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize File.Version: %w", err)
 	}
 
 	rectangleData, err := f.Rectangle.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize File.Rectangle: %w", err)
 	}
 
 	frameRateData, err := f.FrameRate.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize File.FrameRate: %w", err)
 	}
 
 	frameCountData, err := f.FrameCount.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize File.FrameCount: %w", err)
 	}
 
 	contentsData, err := f.Contents.Serialize()
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize File.Contents: %w", err)
 	}
 
 	var body []byte
@@ -237,7 +237,7 @@ func (c ContentSlice) Serialize() ([]byte, error) {
 		contentData, err := c[i].Serialize()
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to serialize %s (File.Contents[%d]): %w", c[i].TagCode(), i, err)
 		}
 
 		data = append(data, contentData...)
@@ -387,7 +387,7 @@ func parseContent(src io.Reader) (Content, error) {
 	case SetTabIndexTagCode:
 		content, err = ParseSetTabIndex(src, tag, extended)
 	case FileAttributesTagCode:
-		content, err = ParseFileAttributes(src, tag, extended)
+		content, err = ParseFileAttributes(src, tag)
 	case PlaceObject3TagCode:
 		content, err = ParsePlaceObject3(src, tag, extended)
 	case ImportAssets2TagCode:
