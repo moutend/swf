@@ -490,10 +490,10 @@ func (c *Color) String() string {
 		return "<nil>"
 	}
 	if len(c.data.Bytes()) == 3 {
-		return fmt.Sprintf("Color{0x%x 0x%x 0x%x}", c.Red, c.Green, c.Blue)
+		return fmt.Sprintf("RGB{%d, %d, %d}", c.Red, c.Green, c.Blue)
 	}
 
-	return fmt.Sprintf("Color{0x%x 0x%x 0x%x 0x%x}", c.Red, c.Green, c.Blue, c.Alpha)
+	return fmt.Sprintf("RGBA{%d, %d, %d, %d}", c.Red, c.Green, c.Blue, c.Alpha)
 }
 
 func (c *Color) Bytes() []byte {

@@ -13,7 +13,7 @@ func (v *End) String() string {
 		return "<nil"
 	}
 
-	return "End{}"
+	return "End{0 bytes}"
 }
 
 func (v *End) Bytes() []byte {

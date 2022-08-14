@@ -13,7 +13,7 @@ func (v *ShowFrame) String() string {
 		return "<nil"
 	}
 
-	return "ShowFrame{}"
+	return "ShowFrame{0 bytes}"
 }
 
 func (v *ShowFrame) Bytes() []byte {
