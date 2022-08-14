@@ -14,134 +14,6 @@ const (
 	SignatureCompressed   = `SWC`
 )
 
-type Signature struct {
-	Value string
-	data  *bytes.Buffer
-}
-
-func (s *Signature) String() string {
-	if s == nil {
-		return "<nil>"
-	}
-
-	return fmt.Sprintf("Signature{%q}", s.Value)
-}
-
-func (s *Signature) Bytes() []byte {
-	if s == nil || s.data == nil {
-		return nil
-	}
-
-	var data []byte
-
-	data = append(data, s.data.Bytes()...)
-
-	return data
-}
-
-func (s *Signature) Serialize() ([]byte, error) {
-	if s == nil {
-		return nil, nil
-	}
-	switch s.Value {
-	case SignatureUncompressed:
-		return []byte(`FWS`), nil
-	case SignatureCompressed:
-		return []byte(`CWS`), nil
-	default:
-		return nil, fmt.Errorf("invalid signature: %q", s.Value)
-	}
-}
-
-func ReadSignature(src io.Reader) (*Signature, error) {
-	data := &bytes.Buffer{}
-
-	dataLength, err := io.CopyN(data, src, 3)
-
-	if err != nil {
-		return nil, err
-	}
-	if dataLength != 3 {
-		return nil, fmt.Errorf("broken signature")
-	}
-	if data.String() != `FWS` && data.String() != `CWS` {
-		return nil, fmt.Errorf("invalid signature: %q", data.String())
-	}
-
-	var value string
-
-	if data.String() == `FWS` {
-		value = SignatureUncompressed
-	} else {
-		value = SignatureCompressed
-	}
-
-	signature := &Signature{
-		Value: value,
-		data:  data,
-	}
-
-	return signature, nil
-}
-
-type FrameRate struct {
-	Value float64
-	data  *bytes.Buffer
-}
-
-func (f *FrameRate) String() string {
-	if f == nil {
-		return "<nil>"
-	}
-
-	return fmt.Sprintf("FrameRate{%.2f}", f.Value)
-}
-
-func (f *FrameRate) Bytes() []byte {
-	if f == nil || f.data == nil {
-		return nil
-	}
-
-	var data []byte
-
-	data = append(data, f.data.Bytes()...)
-
-	return data
-}
-
-func (f *FrameRate) Serialize() ([]byte, error) {
-	if f == nil {
-		return nil, nil
-	}
-
-	a := uint8(f.Value)
-	b := uint8((f.Value - math.Floor(f.Value)) * 100.0)
-
-	return []byte{b, a}, nil
-}
-
-func ReadFrameRate(src io.Reader) (*FrameRate, error) {
-	data := &bytes.Buffer{}
-
-	dataLength, err := io.CopyN(data, src, 2)
-
-	if err != nil {
-		return nil, err
-	}
-	if dataLength != 2 {
-		return nil, fmt.Errorf("broken FrameRate")
-	}
-
-	value := float64(uint8(data.Bytes()[1])) + float64(uint8(data.Bytes()[0]))/100.0
-
-	result := &FrameRate{
-		Value: value,
-		data:  data,
-	}
-
-	return result, nil
-}
-
 type Uint8 struct {
 	Value uint8
 	value uint8
@@ -328,6 +200,134 @@ func ReadUint32(src io.Reader) (*Uint32, error) {
 	}
 
 	result := &Uint32{
+		Value: value,
+		data:  data,
+	}
+
+	return result, nil
+}
+
+type Signature struct {
+	Value string
+	data  *bytes.Buffer
+}
+
+func (s *Signature) String() string {
+	if s == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("Signature{%q}", s.Value)
+}
+
+func (s *Signature) Bytes() []byte {
+	if s == nil || s.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, s.data.Bytes()...)
+
+	return data
+}
+
+func (s *Signature) Serialize() ([]byte, error) {
+	if s == nil {
+		return nil, nil
+	}
+	switch s.Value {
+	case SignatureUncompressed:
+		return []byte(`FWS`), nil
+	case SignatureCompressed:
+		return []byte(`CWS`), nil
+	default:
+		return nil, fmt.Errorf("invalid signature: %q", s.Value)
+	}
+}
+
+func ReadSignature(src io.Reader) (*Signature, error) {
+	data := &bytes.Buffer{}
+
+	dataLength, err := io.CopyN(data, src, 3)
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != 3 {
+		return nil, fmt.Errorf("broken signature")
+	}
+	if data.String() != `FWS` && data.String() != `CWS` {
+		return nil, fmt.Errorf("invalid signature: %q", data.String())
+	}
+
+	var value string
+
+	if data.String() == `FWS` {
+		value = SignatureUncompressed
+	} else {
+		value = SignatureCompressed
+	}
+
+	signature := &Signature{
+		Value: value,
+		data:  data,
+	}
+
+	return signature, nil
+}
+
+type FrameRate struct {
+	Value float64
+	data  *bytes.Buffer
+}
+
+func (f *FrameRate) String() string {
+	if f == nil {
+		return "<nil>"
+	}
+
+	return fmt.Sprintf("FrameRate{%.2f}", f.Value)
+}
+
+func (f *FrameRate) Bytes() []byte {
+	if f == nil || f.data == nil {
+		return nil
+	}
+
+	var data []byte
+
+	data = append(data, f.data.Bytes()...)
+
+	return data
+}
+
+func (f *FrameRate) Serialize() ([]byte, error) {
+	if f == nil {
+		return nil, nil
+	}
+
+	a := uint8(f.Value)
+	b := uint8((f.Value - math.Floor(f.Value)) * 100.0)
+
+	return []byte{b, a}, nil
+}
+
+func ReadFrameRate(src io.Reader) (*FrameRate, error) {
+	data := &bytes.Buffer{}
+
+	dataLength, err := io.CopyN(data, src, 2)
+
+	if err != nil {
+		return nil, err
+	}
+	if dataLength != 2 {
+		return nil, fmt.Errorf("broken FrameRate")
+	}
+
+	value := float64(uint8(data.Bytes()[1])) + float64(uint8(data.Bytes()[0]))/100.0
+
+	result := &FrameRate{
 		Value: value,
 		data:  data,
 	}
