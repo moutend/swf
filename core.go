@@ -3,6 +3,7 @@ package swf
 import (
 	"bytes"
 	"compress/zlib"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -253,7 +254,7 @@ func parseContents(src io.Reader) (ContentSlice, error) {
 	for {
 		content, err := parseContent(src)
 
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
