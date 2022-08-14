@@ -63,12 +63,6 @@ func (f *File) Serialize() ([]byte, error) {
 		return nil, err
 	}
 
-	fileSizeData, err := f.FileSize.Serialize()
-
-	if err != nil {
-		return nil, err
-	}
-
 	rectangleData, err := f.Rectangle.Serialize()
 
 	if err != nil {
@@ -93,12 +87,6 @@ func (f *File) Serialize() ([]byte, error) {
 		return nil, err
 	}
 
-	var header []byte
-
-	header = append(header, signatureData...)
-	header = append(header, versionData...)
-	header = append(header, fileSizeData...)
-
 	var body []byte
 
 	body = append(body, rectangleData...)
@@ -118,6 +106,20 @@ func (f *File) Serialize() ([]byte, error) {
 
 		body = buffer.Bytes()
 	}
+
+	fileSize := &Uint32{Value: uint32(len(body) + 8)}
+
+	fileSizeData, err := fileSize.Serialize()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var header []byte
+
+	header = append(header, signatureData...)
+	header = append(header, versionData...)
+	header = append(header, fileSizeData...)
 
 	var result []byte
 
