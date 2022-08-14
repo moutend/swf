@@ -41,7 +41,7 @@ func (s *Signature) Bytes() []byte {
 
 func (s *Signature) Serialize() ([]byte, error) {
 	if s == nil {
-		return nil, fmt.Errorf("cannot serialize because Signature is nil")
+		return nil, nil
 	}
 	switch s.Value {
 	case SignatureUncompressed:
@@ -111,7 +111,7 @@ func (f *FrameRate) Bytes() []byte {
 
 func (f *FrameRate) Serialize() ([]byte, error) {
 	if f == nil {
-		return nil, fmt.Errorf("cannot serialize because FrameRate is nil")
+		return nil, nil
 	}
 
 	a := uint8(f.Value)
@@ -366,7 +366,7 @@ func (r *Rectangle) Bytes() []byte {
 
 func (r *Rectangle) Serialize() ([]byte, error) {
 	if r == nil {
-		return nil, fmt.Errorf("cannot serialize because Rectangle is nil")
+		return nil, nil
 	}
 
 	var s string
@@ -510,7 +510,7 @@ func (c *Color) Bytes() []byte {
 
 func (c *Color) Serialize() ([]byte, error) {
 	if c == nil {
-		return nil, fmt.Errorf("cannot serialize because Color is nil")
+		return nil, nil
 	}
 	switch len(c.data.Bytes()) {
 	case 3:

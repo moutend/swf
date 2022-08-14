@@ -22,7 +22,7 @@ func TestReadRectangle(t *testing.T) {
 	require.Equal(t, uint32(0), rectangle.MinY)
 	require.Equal(t, uint32(10000), rectangle.MaxY)
 
-	require.Equal(t, data, rectangle.Data())
+	require.Equal(t, data, rectangle.Bytes())
 	require.Equal(t, "Rectangle{0 8000 0 10000}", rectangle.String())
 
 	d1, err := rectangle.Serialize()
@@ -44,10 +44,10 @@ func TestReadRGB(t *testing.T) {
 	require.Equal(t, uint8(0x56), color.Blue)
 	require.Equal(t, uint8(0xff), color.Alpha)
 
-	require.Equal(t, "Color{0x12 0x34 0x56}", color.String())
+	require.Equal(t, "RGB{18, 52, 86}", color.String())
 
-	require.Len(t, color.Data(), 3)
-	require.Equal(t, []byte{0x12, 0x34, 0x56}, color.Data())
+	require.Len(t, color.Bytes(), 3)
+	require.Equal(t, []byte{0x12, 0x34, 0x56}, color.Bytes())
 
 	color.Red = 0x11
 	color.Green = 0x22
