@@ -1220,6 +1220,7 @@ type StyleChangeData struct {
 	FillStyle0Value *uint64
 	FillStyle1Value *uint64
 	LineStyleValue  *uint64
+	ShapeStyles     *ShapeStyles
 }
 
 type ShapeRecord struct {
@@ -1235,6 +1236,7 @@ type ShapeRecord struct {
 	AnchorDeltaXValue   *uint64
 	AnchorDeltaYValue   *uint64
 	FlagsValue          *uint64
+	StyleChangeData     *StyleChangeData
 }
 
 func ReadShapeRecord(src io.Reader, shapeContext *ShapeContext) (*ShapeRecord, error) {
@@ -1407,8 +1409,18 @@ func ReadShapeRecord(src io.Reader, shapeContext *ShapeContext) (*ShapeRecord, e
 				newStyle.LineStyleValue = &lineStyleValue
 			}
 			if (flagsValue & 0b10000) != 0 {
-				// implement me
+				newShapeStyles, err := ReadShapeStyles(src, shapeContext.ShapeVersion)
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
+				}
+
+				newStyle.ShapeStyles = newShapeStyles
+				shapeContext.NumFillBits = newShapeStyles.NumBits.Value >> 4
+				shapeContext.NumLineBits = newShapeStyles.NumBits.Value & 0b1111
 			}
+
+			result.StyleChangeData = newStyle
 		} else {
 			return nil, nil
 		}
@@ -1493,6 +1505,8 @@ func ReadDefineShape(src io.Reader, swfVersion, shapeVersion int) (*Shape, error
 
 		i += 1
 	}
+
+	result.ShapeRecords = shapeRecords
 
 	return result, nil
 }
