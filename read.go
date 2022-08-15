@@ -844,17 +844,59 @@ func ReadFillStyle(src io.Reader, shapeVersion int) (*FillStyle, error) {
 	return result, nil
 }
 
-type Shape struct {
-	ID          *Uint16
-	ShapeBounds *Rectangle
-	EdgeBounds  *Rectangle
-	Flags       *Uint8
+type LineStyle struct {
+	Width *Uint16
+	Color *Color
+	Flags *Uint16
+}
+
+func ReadLineStyle(src io.Reader, shapeVersion int) (*LineStyle, error) {
+	width, err := ReadUint16(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read LineStyle.Width: %w", err)
+	}
+
+	result := &LineStyle{
+		Width: width,
+	}
+
+	if shapeVersion < 4 {
+		var color *Color
+
+		if shapeVersion >= 3 {
+			color, err = ReadRGBA(src)
+		} else {
+			color, err = ReadRGB(src)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read LineStyle.Color: %w", err)
+		}
+
+		result.Color = color
+
+		return result, nil
+	}
+
+	flags, err := ReadUint16(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read LineStyle.Flags: %w", err)
+	}
+
+	result.Flags = flags
+
+	return result, nil
 }
 
 type ShapeStyles struct {
 	NumFillStyles  *Uint8
 	NumFillStyles2 *Uint16
 	FillStyles     []*FillStyle
+	NumLineStyles  *Uint8
+	NumLineStyles2 *Uint16
+	LineStyles     []*LineStyle
+	Flags          *Uint8
 }
 
 func ReadShapeStyles(src io.Reader, shapeVersion int) (*ShapeStyles, error) {
@@ -898,7 +940,60 @@ func ReadShapeStyles(src io.Reader, shapeVersion int) (*ShapeStyles, error) {
 
 	result.FillStyles = fillStyles
 
+	numLineStyles, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ShapeStyles.NumLineStyles: %w", err)
+	}
+
+	result.NumLineStyles = numLineStyles
+
+	var numLineStylesInt int
+
+	if numLineStyles.Value == 0xff && shapeVersion >= 2 {
+		numLineStyles2, err := ReadUint16(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read ShapeStyles.NumLineStyles2: %w", err)
+		}
+
+		result.NumLineStyles2 = numLineStyles2
+
+		numLineStylesInt = int(numLineStyles2.Value)
+	} else {
+		numLineStylesInt = int(numLineStyles.Value)
+	}
+
+	lineStyles := make([]*LineStyle, numLineStylesInt)
+
+	for i := range lineStyles {
+		lineStyle, err := ReadLineStyle(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read ShapeStyles.LineStyles[%d]: %w", err)
+		}
+
+		lineStyles[i] = lineStyle
+	}
+
+	result.LineStyles = lineStyles
+
+	flags, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ShapeStyles.Flags: %w", err)
+	}
+
+	result.Flags = flags
+
 	return result, nil
+}
+
+type Shape struct {
+	ID          *Uint16
+	ShapeBounds *Rectangle
+	EdgeBounds  *Rectangle
+	Flags       *Uint8
 }
 
 func ReadDefineShape(src io.Reader, version int) (*Shape, error) {
