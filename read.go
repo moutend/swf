@@ -844,45 +844,47 @@ func ReadFillStyle(src io.Reader, shapeVersion int) (*FillStyle, error) {
 	return result, nil
 }
 
-/*
-func ReadGradient(src io.Reader) error {
-	ReadMatrix(src)
-	return nil
+type Shape struct {
+	ID          *Uint16
+	ShapeBounds *Rectangle
+	EdgeBounds  *Rectangle
+	Flags       *Uint8
 }
 
-func ReadShapeStyles(src io.Reader, shapeVersion int) (error, error) {
-	u8, err := ReadUint8(src)
+func ReadDefineShape(src io.Reader, version int) (*Shape, error) {
+	id, err := ReadUint16(src)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read Shape.ID: %w", err)
 	}
 
-	var numFillStyles int
+	shapeBounds, err := ReadRectangle(src)
 
-	if u8.Value == 0xff && shapeVersion >= 2 {
-		u16, err := ReadUint16(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Shape.ShapeBounds: %w", err)
+	}
+
+	result := &Shape{
+		ID:          id,
+		ShapeBounds: shapeBounds,
+	}
+
+	if version >= 4 {
+		edgeBounds, err := ReadRectangle(src)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read Shape.EdgeBounds: %w", err)
 		}
 
-		numFillStyles = int(u16.Value)
-	} else {
-		numFillStyles = int(u8.Value)
-	}
-
-	fillStyles := make([]FillStyle, nummFillStyles)
-
-	for i := 0; i < numFillStyles; i++ {
-		fillStyle, err := ReadFillStyle(src, shapeVersion)
+		flags, err := ReadUint8(src)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read Shape.Flags: %w", err)
 		}
 
-		fillStyles[i] = fillStyle
+		result.EdgeBounds = edgeBounds
+		result.Flags = flags
 	}
 
-	return nil, nil
+	return result, nil
 }
-*/
