@@ -765,15 +765,13 @@ func ReadGradient(src io.Reader, shapeVersion int) (*Gradient, error) {
 	return result, nil
 }
 
-/*
-func ReadGradient(src io.Reader) error {
-	ReadMatrix(src)
-	return nil
-}
-
 type FillStyle struct {
-	Type  *Uint8
-	Color *Color
+	Type       *Uint8
+	Color      *Color
+	Gradient   *Gradient
+	FocalPoint *Uint16
+	ID         *Uint16
+	Matrix     *Matrix
 }
 
 func ReadFillStyle(src io.Reader, shapeVersion int) (*FillStyle, error) {
@@ -783,7 +781,9 @@ func ReadFillStyle(src io.Reader, shapeVersion int) (*FillStyle, error) {
 		return nil, fmt.Errorf("failed to read FillStyle.Type: %w", err)
 	}
 
-	result := &FillStyle{}
+	result := &FillStyle{
+		Type: fillStyleType,
+	}
 
 	switch fillStyleType.Value {
 	case 0x00:
@@ -795,17 +795,59 @@ func ReadFillStyle(src io.Reader, shapeVersion int) (*FillStyle, error) {
 			color, err = ReadRGB(src)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to read FillStyle: %w", err)
+			return nil, fmt.Errorf("failed to read FillStyle.Color: %w", err)
 		}
 
 		result.Color = color
-	case 0x10:
-	case 0x12:
+	case 0x10, 0x12:
+		gradient, err := ReadGradient(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read FillStyle.Gradient: %w", err)
+		}
+
+		result.Gradient = gradient
 	case 0x13:
+		gradient, err := ReadGradient(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read FillStyle.Gradient: %w", err)
+		}
+
+		focalPoint, err := ReadUint16(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read FillStyle.FocalPoint: %w", err)
+		}
+
+		result.Gradient = gradient
+		result.FocalPoint = focalPoint
 	case 0x40, 0x41, 0x42, 0x43:
+		id, err := ReadUint16(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read FillStyle.ID: %w", err)
+		}
+
+		matrix, err := ReadMatrix(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read FillStyle.Matrix: %w", err)
+		}
+
+		result.ID = id
+		result.Matrix = matrix
 	default:
 		return nil, fmt.Errorf("failed to read FillStyle: invalid type: %d", fillStyleType.Value)
 	}
+
+	return result, nil
+}
+
+/*
+func ReadGradient(src io.Reader) error {
+	ReadMatrix(src)
+	return nil
 }
 
 func ReadShapeStyles(src io.Reader, shapeVersion int) (error, error) {
