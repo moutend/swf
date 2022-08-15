@@ -70,6 +70,10 @@ type Uint16 struct {
 	data  *bytes.Buffer
 }
 
+func (u *Uint16) Contains(value uint16) bool {
+	return u.Value&value == value
+}
+
 func (u *Uint16) String() string {
 	if u == nil {
 		return "<nil>"
@@ -735,7 +739,7 @@ func ReadGradient(src io.Reader, shapeVersion int) (*Gradient, error) {
 	matrix, err := ReadMatrix(src)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read Gradient.Marix: %w", err)
+		return nil, fmt.Errorf("failed to read Gradient.Matrix: %w", err)
 	}
 
 	flags, err := ReadGradientFlags(src)
@@ -760,6 +764,64 @@ func ReadGradient(src io.Reader, shapeVersion int) (*Gradient, error) {
 		Matrix:  matrix,
 		Flags:   flags,
 		Records: records,
+	}
+
+	return result, nil
+}
+
+type MorphGradient struct {
+	Flags *GradientFlags
+	Start *Gradient
+	End   *Gradient
+}
+
+func ReadMorphGradient(src io.Reader, shapeVersion int) (*MorphGradient, error) {
+	startMatrix, err := ReadMatrix(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MorphGradient.Start.Matrix: %w", err)
+	}
+
+	endMatrix, err := ReadMatrix(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MorphGradient.End.Matrix: %w", err)
+	}
+
+	flags, err := ReadGradientFlags(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MorphGradient.Flags: %w", err)
+	}
+
+	start := &Gradient{Matrix: startMatrix}
+	end := &Gradient{Matrix: endMatrix}
+
+	startRecords := make([]*GradientRecord, int(flags.NumRecords))
+	endRecords := make([]*GradientRecord, int(flags.NumRecords))
+
+	for i := 0; i < int(flags.NumRecords); i++ {
+		startRecord, err := ReadGradientRecord(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphGradient.Start.Records[%d]: %w", i, err)
+		}
+
+		startRecords[i] = startRecord
+
+		endRecord, err := ReadGradientRecord(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphGradient.End.Records[%d]: %w", i, err)
+		}
+
+		endRecords[i] = endRecord
+	}
+
+	result := &MorphGradient{
+		Flags: flags,
+		Start: start,
+		End:   end,
 	}
 
 	return result, nil
@@ -844,10 +906,133 @@ func ReadFillStyle(src io.Reader, shapeVersion int) (*FillStyle, error) {
 	return result, nil
 }
 
+type MorphFillStyle struct {
+	Type            *Uint8
+	Start           *FillStyle
+	End             *FillStyle
+	MorphGradient   *MorphGradient
+	StartFocalPoint *Uint16
+	EndFocalPoint   *Uint16
+	ID              *Uint16
+}
+
+func ReadMorphFillStyle(src io.Reader, shapeVersion int) (*MorphFillStyle, error) {
+	fillStyleType, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MorphFillStyle.Type: %w", err)
+	}
+
+	result := &MorphFillStyle{Type: fillStyleType}
+
+	switch fillStyleType.Value {
+	case 0x00:
+		var startColor *Color
+
+		if shapeVersion >= 3 {
+			startColor, err = ReadRGBA(src)
+		} else {
+			startColor, err = ReadRGB(src)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.Start.Color: %w", err)
+		}
+
+		var endColor *Color
+
+		if shapeVersion >= 3 {
+			endColor, err = ReadRGBA(src)
+		} else {
+			endColor, err = ReadRGB(src)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.End.Color: %w", err)
+		}
+
+		result.Start = &FillStyle{Color: startColor}
+		result.End = &FillStyle{Color: endColor}
+	case 0x10, 0x12:
+		morphGradient, err := ReadMorphGradient(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.MorphGradient: %w", err)
+		}
+
+		result.MorphGradient = morphGradient
+	case 0x13:
+		morphGradient, err := ReadMorphGradient(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.MorphGradient: %w", err)
+		}
+
+		startFocalPoint, err := ReadUint16(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.StartFocalPoint: %w", err)
+		}
+
+		endFocalPoint, err := ReadUint16(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.EndFocalPoint: %w", err)
+		}
+
+		result.MorphGradient = morphGradient
+		result.StartFocalPoint = startFocalPoint
+		result.EndFocalPoint = endFocalPoint
+	case 0x40, 0x41, 0x42, 0x43:
+		id, err := ReadUint16(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.ID: %w", err)
+		}
+
+		startMatrix, err := ReadMatrix(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.Start.Matrix: %w", err)
+		}
+
+		endMatrix, err := ReadMatrix(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read MorphFillStyle.End.Matrix: %w", err)
+		}
+
+		result.ID = id
+		result.Start = &FillStyle{Matrix: startMatrix}
+		result.End = &FillStyle{Matrix: endMatrix}
+	default:
+		return nil, fmt.Errorf("failed to read MorphFillStyle: invalid type: %d", fillStyleType.Value)
+	}
+
+	return result, nil
+}
+
+const (
+	// First byte.
+	LineStyleFlagPixelHinting      = 1 << 0
+	LineStyleFlagNoVerticalScale   = 1 << 1
+	LineStyleFlagNoHorizontalScale = 1 << 2
+	LineStyleFlagHasFill           = 1 << 3
+	LineStyleFlagJoinStyle         = 0b11 << 4
+	LineStyleFlagStartCapStyle     = 0b11 << 6
+	// Second byte.
+	LineStyleFlagEndCapStyle = 0b11 << 8
+	LineStyleFlagNoClose     = 1 << 10
+	// JoinStyle mask values.
+	JoinStyleRound = 0b00 << 4
+	JoinStyleBevel = 0b01 << 4
+	JoinStyleMiter = 0b10 << 4
+)
+
 type LineStyle struct {
-	Width *Uint16
-	Color *Color
-	Flags *Uint16
+	Width     *Uint16
+	Color     *Color
+	Flags     *Uint16
+	FillStyle *FillStyle
+	Miter     *Uint16
 }
 
 func ReadLineStyle(src io.Reader, shapeVersion int) (*LineStyle, error) {
@@ -857,9 +1042,7 @@ func ReadLineStyle(src io.Reader, shapeVersion int) (*LineStyle, error) {
 		return nil, fmt.Errorf("failed to read LineStyle.Width: %w", err)
 	}
 
-	result := &LineStyle{
-		Width: width,
-	}
+	result := &LineStyle{Width: width}
 
 	if shapeVersion < 4 {
 		var color *Color
@@ -885,6 +1068,42 @@ func ReadLineStyle(src io.Reader, shapeVersion int) (*LineStyle, error) {
 	}
 
 	result.Flags = flags
+
+	if flags.Contains(LineStyleFlagJoinStyle) {
+		flags.Value -= LineStyleFlagJoinStyle
+	}
+	if flags.Contains(LineStyleFlagStartCapStyle) {
+		flags.Value -= LineStyleFlagStartCapStyle
+	}
+	if flags.Contains(LineStyleFlagEndCapStyle) {
+		flags.Value -= LineStyleFlagEndCapStyle
+	}
+	if flags.Value&LineStyleFlagJoinStyle == JoinStyleMiter {
+		miter, err := ReadUint16(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read LineStyle.Miter: %w", err)
+		}
+
+		result.Miter = miter
+	}
+	if flags.Contains(LineStyleFlagHasFill) {
+		fillStyle, err := ReadFillStyle(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read LineStyle.FillStyle: %w", err)
+		}
+
+		result.FillStyle = fillStyle
+	} else {
+		color, err := ReadRGBA(src)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed tor ead LineStyle.Color: %w", err)
+		}
+
+		result.FillStyle = &FillStyle{Color: color}
+	}
 
 	return result, nil
 }
