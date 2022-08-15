@@ -1206,15 +1206,73 @@ func ReadShapeStyles(src io.Reader, shapeVersion int) (*ShapeStyles, error) {
 	return result, nil
 }
 
-type Shape struct {
-	ID          *Uint16
-	ShapeBounds *Rectangle
-	EdgeBounds  *Rectangle
-	Flags       *Uint8
-	ShapeStyles *ShapeStyles
+type ShapeRecord struct {
+	IsEdgeRecord uint64
 }
 
-func ReadDefineShape(src io.Reader, shapeVersion int) (*Shape, error) {
+type ShapeContext struct {
+	SWFVersion   int
+	ShapeVersion int
+	NumFillBits  uint8
+	NumLineBits  uint8
+}
+
+func ReadShapeRecord(src io.Reader, shapeContext *ShapeContext) (*ShapeRecord, error) {
+	buffer := &bits.Buffer{}
+
+	isEdgeRecord, err := buffer.Scan(src, 1)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
+	}
+
+	result := &ShapeRecord{IsEdgeRecord: isEdgeRecord}
+
+	if isEdgeRecord == 1 {
+		isStraightEdge, err := buffer.Scan(src, 1)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
+		}
+
+		numBits, err := buffer.Scan(src, 4)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
+		}
+
+		numBits += 2
+
+		if isStraightEdge == 1 {
+			// StraightEdge
+		} else {
+			// CurvedEdge
+		}
+	} else {
+		flags, err := buffer.Scan(src, 5)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
+		}
+		if flags != 0 {
+		} else {
+			return nil, nil
+		}
+	}
+
+	return result, nil
+}
+
+type Shape struct {
+	ID           *Uint16
+	ShapeBounds  *Rectangle
+	EdgeBounds   *Rectangle
+	Flags        *Uint8
+	ShapeStyles  *ShapeStyles
+	ShapeRecords []*ShapeRecord
+}
+
+func ReadDefineShape(src io.Reader, swfVersion, shapeVersion int) (*Shape, error) {
 	id, err := ReadUint16(src)
 
 	if err != nil {
@@ -1257,7 +1315,30 @@ func ReadDefineShape(src io.Reader, shapeVersion int) (*Shape, error) {
 
 	result.ShapeStyles = shapeStyles
 
-	// todo
+	shapeContext := &ShapeContext{
+		SWFVersion:   swfVersion,
+		ShapeVersion: shapeVersion,
+		NumFillBits:  shapeStyles.NumBits.Value >> 4,
+		NumLineBits:  shapeStyles.NumBits.Value & 0b1111,
+	}
+
+	shapeRecords := []*ShapeRecord{}
+	i := 0
+
+	for {
+		shapeRecord, err := ReadShapeRecord(src, shapeContext)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Shape.ShapeRecords[%d]: %w", i, err)
+		}
+		if shapeRecord == nil {
+			break
+		}
+
+		shapeRecords = append(shapeRecords, shapeRecord)
+
+		i += 1
+	}
 
 	return result, nil
 }
