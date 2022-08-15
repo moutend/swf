@@ -1206,10 +1206,6 @@ func ReadShapeStyles(src io.Reader, shapeVersion int) (*ShapeStyles, error) {
 	return result, nil
 }
 
-type ShapeRecord struct {
-	IsEdgeRecord uint64
-}
-
 type ShapeContext struct {
 	SWFVersion   int
 	ShapeVersion int
@@ -1217,44 +1213,202 @@ type ShapeContext struct {
 	NumLineBits  uint8
 }
 
+type StyleChangeData struct {
+	NumBitsValue    *uint64
+	MoveToValue1    *uint64
+	MoveToValue2    *uint64
+	FillStyle0Value *uint64
+	FillStyle1Value *uint64
+	LineStyleValue  *uint64
+}
+
+type ShapeRecord struct {
+	IsEdgeRecordValue   *uint64
+	IsStraightEdgeValue *uint64
+	NumBitsValue        *uint64
+	IsAxisAlignedValue  *uint64
+	IsVerticalValue     *uint64
+	DeltaXValue         *uint64
+	DeltaYValue         *uint64
+	ControlDeltaXValue  *uint64
+	ControlDeltaYValue  *uint64
+	AnchorDeltaXValue   *uint64
+	AnchorDeltaYValue   *uint64
+	FlagsValue          *uint64
+}
+
 func ReadShapeRecord(src io.Reader, shapeContext *ShapeContext) (*ShapeRecord, error) {
 	buffer := &bits.Buffer{}
 
-	isEdgeRecord, err := buffer.Scan(src, 1)
+	isEdgeRecordValue, err := buffer.Scan(src, 1)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
+		return nil, fmt.Errorf("failed to read ShapeRecord.IsEdgeRecordValue: %w", err)
 	}
 
-	result := &ShapeRecord{IsEdgeRecord: isEdgeRecord}
+	isEdgeRecord := isEdgeRecordValue == 1
+	result := &ShapeRecord{IsEdgeRecordValue: &isEdgeRecordValue}
 
-	if isEdgeRecord == 1 {
-		isStraightEdge, err := buffer.Scan(src, 1)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
-		}
-
-		numBits, err := buffer.Scan(src, 4)
+	if isEdgeRecord {
+		isStraightEdgeValue, err := buffer.Scan(src, 1)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
+			return nil, fmt.Errorf("failed to read ShapeRecord.IsStraightEdgeValue: %w", err)
 		}
 
-		numBits += 2
+		isStraightEdge := isStraightEdgeValue == 1
+		result.IsStraightEdgeValue = &isStraightEdgeValue
 
-		if isStraightEdge == 1 {
+		numBitsValue, err := buffer.Scan(src, 4)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read ShapeRecord.NumBitsValue: %w", err)
+		}
+
+		numBitsValue += 2
+		result.NumBitsValue = &numBitsValue
+
+		if isStraightEdge {
 			// StraightEdge
+			isAxisAlignedValue, err := buffer.Scan(src, 1)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to read ShapeRecord.IsAxisAlignedValue: %w", err)
+			}
+
+			isAxisAligned := isAxisAlignedValue == 1
+			result.IsAxisAlignedValue = &isAxisAlignedValue
+
+			isVerticalValue, err := buffer.Scan(src, 1)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to read ShapeRecord.IsVerticalValue: %w", err)
+			}
+
+			isVertical := isAxisAligned && isVerticalValue == 1
+			result.IsVerticalValue = &isVerticalValue
+
+			if !isAxisAligned || !isVertical {
+				deltaXValue, err := buffer.Scan(src, int(numBitsValue))
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read ShapeRecord.DeltaXValue: %w", err)
+				}
+
+				result.DeltaXValue = &deltaXValue
+			}
+			if !isAxisAligned || isVertical {
+				deltaYValue, err := buffer.Scan(src, int(numBitsValue))
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read ShapeRecord.DeltaYValue: %w", err)
+				}
+
+				result.DeltaYValue = &deltaYValue
+			}
 		} else {
 			// CurvedEdge
+			controlDeltaXValue, err := buffer.Scan(src, int(numBitsValue))
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to read ShapeRecord.ControlDeltaXValue: %w", err)
+			}
+
+			result.ControlDeltaXValue = &controlDeltaXValue
+
+			controlDeltaYValue, err := buffer.Scan(src, int(numBitsValue))
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to read ShapeRecord.ControlDeltaYValue: %w", err)
+			}
+
+			result.ControlDeltaYValue = &controlDeltaYValue
+
+			anchorDeltaXValue, err := buffer.Scan(src, int(numBitsValue))
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to read ShapeRecord.AnchorDeltaXValue: %w", err)
+			}
+
+			result.AnchorDeltaXValue = &anchorDeltaXValue
+
+			anchorDeltaYValue, err := buffer.Scan(src, int(numBitsValue))
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to read ShapeRecord.AnchorDeltaYValue: %w", err)
+			}
+
+			result.AnchorDeltaYValue = &anchorDeltaYValue
 		}
 	} else {
-		flags, err := buffer.Scan(src, 5)
+		flagsValue, err := buffer.Scan(src, 5)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to read ShapeRecord: %w", err)
+			return nil, fmt.Errorf("failed to read ShapeRecord.FlagsValue: %w", err)
 		}
-		if flags != 0 {
+
+		result.FlagsValue = &flagsValue
+
+		if flagsValue != 0 {
+			// StyleChange
+			newStyle := &StyleChangeData{}
+
+			if (flagsValue & 0b1) != 0 {
+				// move
+				numBitsValue, err := buffer.Scan(src, 5)
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read StyleChangeData.NumBitsValue: %w", err)
+				}
+
+				newStyle.NumBitsValue = &numBitsValue
+
+				moveToValue1, err := buffer.Scan(src, int(numBitsValue))
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read StyleChangeData.MoveToValue1: %w", err)
+				}
+
+				newStyle.MoveToValue1 = &moveToValue1
+
+				moveToValue2, err := buffer.Scan(src, int(numBitsValue))
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read StyleChangeData.MoveToValue2: %w", err)
+				}
+
+				newStyle.MoveToValue2 = &moveToValue2
+			}
+			if (flagsValue & 0b10) != 0 {
+				fillStyle0Value, err := buffer.Scan(src, int(shapeContext.NumFillBits))
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read StyleChangeData.FillStyle0Value: %w", err)
+				}
+
+				newStyle.FillStyle0Value = &fillStyle0Value
+			}
+			if (flagsValue & 0b100) != 0 {
+				fillStyle1Value, err := buffer.Scan(src, int(shapeContext.NumFillBits))
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read StyleChangeData.FillStyle1Value: %w", err)
+				}
+
+				newStyle.FillStyle1Value = &fillStyle1Value
+			}
+			if (flagsValue & 0b1000) != 0 {
+				lineStyleValue, err := buffer.Scan(src, int(shapeContext.NumLineBits))
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to read StyleChangeData.LineStyleValue: %w", err)
+				}
+
+				newStyle.LineStyleValue = &lineStyleValue
+			}
+			if (flagsValue & 0b10000) != 0 {
+				// implement me
+			}
 		} else {
 			return nil, nil
 		}
