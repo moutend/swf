@@ -7,6 +7,8 @@ import (
 	"io"
 	"math"
 	"strconv"
+
+	"github.com/moutend/go-bits"
 )
 
 const (
@@ -559,3 +561,189 @@ func ReadRGBA(src io.Reader) (*Color, error) {
 
 	return &Color{red, green, blue, alpha, w}, nil
 }
+
+type Matrix struct {
+	// Scale
+	HasScale     bool
+	NumScaleBits uint8
+	A            uint32
+	D            uint32
+	// Rotate/Skew
+	HasRotate     bool
+	NumRotateBits uint8
+	B             uint32
+	C             uint32
+	// Translate (always present)
+	NumTranslateBits uint8
+	TX               uint32
+	TY               uint32
+}
+
+func ReadMatrix(src io.Reader) (*Matrix, error) {
+	matrix := &Matrix{}
+	buffer := &bits.Buffer{}
+
+	hasScale, err := buffer.Scan(src, 1)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Matrix.HasScale: %w", err)
+	}
+	if hasScale == 1 {
+		numScaleBits, err := buffer.Scan(src, 5)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Matrix.NumScaleBits: %w", err)
+		}
+
+		a, err := buffer.Scan(src, int(numScaleBits))
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Matrix.A: %w", err)
+		}
+
+		d, err := buffer.Scan(src, int(numScaleBits))
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Matrix.D: %w", err)
+		}
+
+		matrix.HasScale = true
+		matrix.NumScaleBits = uint8(numScaleBits)
+		matrix.A = uint32(a)
+		matrix.D = uint32(d)
+	}
+
+	hasRotate, err := buffer.Scan(src, 1)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Matrix.HasRotate: %w", err)
+	}
+	if hasRotate == 1 {
+		numRotateBits, err := buffer.Scan(src, 5)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Matrix.NumRotateBits: %w", err)
+		}
+
+		b, err := buffer.Scan(src, int(numRotateBits))
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Matrix.B: %w", err)
+		}
+
+		c, err := buffer.Scan(src, int(numRotateBits))
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Matrix.C: %w", err)
+		}
+
+		matrix.HasRotate = true
+		matrix.NumRotateBits = uint8(numRotateBits)
+		matrix.B = uint32(b)
+		matrix.C = uint32(c)
+	}
+
+	numTranslateBits, err := buffer.Scan(src, 5)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Matrix.NumTranslateBits: %w", err)
+	}
+
+	tx, err := buffer.Scan(src, int(numTranslateBits))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Matrix.TX: %w", err)
+	}
+
+	ty, err := buffer.Scan(src, int(numTranslateBits))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Matrix.TY: %w", err)
+	}
+
+	matrix.NumTranslateBits = uint8(numTranslateBits)
+	matrix.TX = uint32(tx)
+	matrix.TY = uint32(ty)
+
+	return matrix, nil
+}
+
+/*
+func ReadGradient(src io.Reader) error {
+	ReadMatrix(src)
+	return nil
+}
+
+type FillStyle struct {
+	Type  *Uint8
+	Color *Color
+}
+
+func ReadFillStyle(src io.Reader, shapeVersion int) (*FillStyle, error) {
+	fillStyleType, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read FillStyle.Type: %w", err)
+	}
+
+	result := &FillStyle{}
+
+	switch fillStyleType.Value {
+	case 0x00:
+		var color *Color
+
+		if shapeVersion >= 3 {
+			color, err = ReadRGBA(src)
+		} else {
+			color, err = ReadRGB(src)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read FillStyle: %w", err)
+		}
+
+		result.Color = color
+	case 0x10:
+	case 0x12:
+	case 0x13:
+	case 0x40, 0x41, 0x42, 0x43:
+	default:
+		return nil, fmt.Errorf("failed to read FillStyle: invalid type: %d", fillStyleType.Value)
+	}
+}
+
+func ReadShapeStyles(src io.Reader, shapeVersion int) (error, error) {
+	u8, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var numFillStyles int
+
+	if u8.Value == 0xff && shapeVersion >= 2 {
+		u16, err := ReadUint16(src)
+
+		if err != nil {
+			return nil, err
+		}
+
+		numFillStyles = int(u16.Value)
+	} else {
+		numFillStyles = int(u8.Value)
+	}
+
+	fillStyles := make([]FillStyle, nummFillStyles)
+
+	for i := 0; i < numFillStyles; i++ {
+		fillStyle, err := ReadFillStyle(src, shapeVersion)
+
+		if err != nil {
+			return nil, err
+		}
+
+		fillStyles[i] = fillStyle
+	}
+
+	return nil, nil
+}
+*/
