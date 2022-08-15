@@ -668,6 +668,103 @@ func ReadMatrix(src io.Reader) (*Matrix, error) {
 	return matrix, nil
 }
 
+type GradientRecord struct {
+	Ratio *Uint8
+	Color *Color
+}
+
+func ReadGradientRecord(src io.Reader, shapeVersion int) (*GradientRecord, error) {
+	ratio, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read GradientRecord: %w", err)
+	}
+
+	var color *Color
+
+	if shapeVersion >= 3 {
+		color, err = ReadRGBA(src)
+	} else {
+		color, err = ReadRGB(src)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read GradientRecord: %w", err)
+	}
+
+	result := &GradientRecord{
+		Ratio: ratio,
+		Color: color,
+	}
+
+	return result, nil
+}
+
+type GradientFlags struct {
+	NumRecords    uint8
+	Spread        uint8
+	Interporation uint8
+}
+
+func ReadGradientFlags(src io.Reader) (*GradientFlags, error) {
+	flags, err := ReadUint8(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Gradient flags: %w", err)
+	}
+
+	spread := (flags.Value >> 6) & 0b11
+	interporation := (flags.Value >> 4) & 0b11
+	numRecords := flags.Value & 0b1111
+
+	result := &GradientFlags{
+		NumRecords:    numRecords,
+		Spread:        spread,
+		Interporation: interporation,
+	}
+
+	return result, nil
+}
+
+type Gradient struct {
+	Matrix  *Matrix
+	Flags   *GradientFlags
+	Records []*GradientRecord
+}
+
+func ReadGradient(src io.Reader, shapeVersion int) (*Gradient, error) {
+	matrix, err := ReadMatrix(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Gradient.Marix: %w", err)
+	}
+
+	flags, err := ReadGradientFlags(src)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Gradient flags: %w", err)
+	}
+
+	records := make([]*GradientRecord, int(flags.NumRecords))
+
+	for i := range records {
+		record, err := ReadGradientRecord(src, shapeVersion)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Gradient.Records[%d]: %w", i, err)
+		}
+
+		records[i] = record
+	}
+
+	result := &Gradient{
+		Matrix:  matrix,
+		Flags:   flags,
+		Records: records,
+	}
+
+	return result, nil
+}
+
 /*
 func ReadGradient(src io.Reader) error {
 	ReadMatrix(src)
